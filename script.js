@@ -43,11 +43,11 @@ function isEMPTY(val) {
 // Make the typed/scanned ID safe for comparison
 function cleanId(text) {
   if (!text) return "";
-  // 1. Remove control characters and trim
-  let t = String(text).replace(/[\u0000-\u001F\u007F]/g, "").trim();
-  // 2. Remove ]C1 prefix at start if present
-  if (t.startsWith("]C1")) t = t.substring(3).trim();
-  return t;
+  // 1. Remove control characters
+  let t = String(text).replace(/[\u0000-\u001F\u007F]/g, "");
+  // 2. Remove ]C1 prefix if it is the very first character
+  if (t.startsWith("]C1")) t = t.slice(3);
+  return t.trim();
 }
 
 /* ------------ Find next empty locations ------------ */
