@@ -2,55 +2,193 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Search from Excel</title>
+  <title>Empty Bin Search</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- SheetJS (read Excel) -->
+  <!-- SheetJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <!-- html5-qrcode (camera scanning) -->
+  <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode" defer></script>
 
   <style>
     :root {
-      --bg: #f8f9fa; --card: #ffffff; --text: #1f2937; --muted: #6b7280;
-      --primary: #0d6efd; --primary-hover: #0b5ed7; --radius: 10px;
+      --bg: #f8fafc; --card: #ffffff; --text: #0f172a; --muted: #6b7280;
+      --primary: #0d6efd; --radius: 10px;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: var(--text); background: var(--bg); }
-    h2 { text-align: center; margin: 0 0 16px; }
-    .card { max-width: 800px; margin: 0 auto; background: var(--card); border-radius: var(--radius); box-shadow: 0 2px 8px rgba(0,0,0,.06); padding: 16px; }
-    form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; margin-bottom: 12px; }
-    input[type="text"] { flex: 1 1 260px; min-width: 200px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; }
-    button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; font-size: 1rem; background: var(--primary); color: #fff; }
-    button:hover { background: var(--primary-hover); }
-    #scannerWrap { display: none; margin-top: 12px; text-align: center; }
-    #qr-reader { width: 100%; max-width: 360px; margin: 0 auto; }
-    .muted { color: var(--muted); font-size: .92rem; }
-    #output { margin-top: 12px; padding: 12px; background: var(--card); border-radius: 8px; border: 1px solid #e5e7eb; }
-    ol { margin: 8px 0 0 20px; }
-    code { background: #f3f4f6; padding: 2px 6px; border-radius: 6px; }
-    @media (max-width: 480px) { button { flex: 1 1 100%; } }
+    body { margin:0; padding:16px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:var(--bg); color:var(--text); }
+    .card { max-width:980px; margin:0 auto; background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:0 4px 18px rgba(2,6,23,0.06); }
+    form { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
+    input[type="text"] { flex:1 1 220px; min-width:160px; padding:10px 12px; border:1px solid #e6eef8; border-radius:8px; }
+    button { padding:10px 12px; border-radius:8px; border:0; background:var(--primary); color:#fff; cursor:pointer; }
+    button.secondary { background:#64748b; }
+    #scannerWrap { display:none; margin-top:10px; text-align:center; }
+    #qr-reader { width:100%; max-width:360px; margin:0 auto; }
+    .muted { color:var(--muted); font-size:.92rem; margin-top:6px; text-align:center; }
+    #output { margin-top:14px; }
+    .bins-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); }
+    .bin-card { padding:16px; border-radius:10px; font-weight:600; text-align:center; box-shadow:0 1px 6px rgba(2,6,23,0.06); font-size:1.05rem; }
+    .notice { padding:10px; border-radius:8px; background:#fff3cd; color:#6b3b00; border:1px solid #ffeeba; margin-bottom:10px; }
+    .error { padding:10px; border-radius:8px; background:#ffe6e6; color:#7a1f1f; border:1px solid #ffb3b3; margin-bottom:10px; }
+    @media (max-width:480px) { input[type="text"] { flex-basis:100%; } }
   </style>
-
-  <script src="script.js" defer></script>
 </head>
 <body>
-  <h2>Search from Excel</h2>
-
   <div class="card">
+    <!-- Search Form -->
     <form id="searchForm">
-      <input type="text" id="id" name="id" required placeholder="Enter or scan ID" autocomplete="off" />
+      <input id="id" type="text" placeholder="Enter or scan ID" autocomplete="off" />
       <button type="submit">Search</button>
-      <button type="button" id="scanBtn">📷 Scan</button>
+      <button type="button" id="scanBtn" class="secondary">📷 Scan</button>
     </form>
 
-    <div id="scannerWrap">
+    <!-- Scanner -->
+    <div id="scannerWrap" aria-hidden="true">
       <div id="qr-reader"></div>
-      <p class="muted">Tip: allow camera permission (HTTPS). Rear camera is used on phones.</p>
-      <button type="button" id="stopScanBtn">Stop camera</button>
+      <div class="muted">Allow camera permission. Use rear camera on phones for scanning barcodes.</div>
+      <div style="text-align:center; margin-top:8px;">
+        <button id="stopScanBtn" type="button">Stop camera</button>
+      </div>
     </div>
 
-    <div id="output"></div>
+    <!-- Output bins -->
+    <div id="output">
+      <div id="binsGrid" class="bins-grid" aria-live="polite"></div>
+    </div>
+
+    <div id="messageArea" style="margin-top:12px"></div>
   </div>
+
+<script>
+/* CONFIG */
+const EMPTY_COUNT = 20;
+const EXCEL_PATH = "./book1.xlsx"; // adjust path if needed
+const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6', '#FFFBEB', '#F6F7FF', '#F9F0FF', '#FFEFE6', '#EAF6FF'];
+
+/* STATE */
+let rowsRaw = [];
+let html5QrCode = null;
+let isScanning = false;
+
+/* HELPERS */
+const logMessage = (msg, type='info') => {
+  const area = document.getElementById('messageArea');
+  area.innerHTML = type==='error'? `<div class="error">${msg}</div>` : `<div class="notice">${msg}</div>`;
+  if(type==='info') setTimeout(()=>area.innerHTML='',4500);
+};
+
+/* LOAD EXCEL */
+async function loadExcel() {
+  try {
+    const res = await fetch(EXCEL_PATH);
+    if(!res.ok) throw new Error(`Could not fetch Excel: ${res.status} ${res.statusText}`);
+    const data = await res.arrayBuffer();
+    const wb = XLSX.read(data,{type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const all = XLSX.utils.sheet_to_json(sheet,{header:1, raw:false, blankrows:false});
+    if(!all || all.length===0) throw new Error('Sheet is empty');
+
+    const first = all[0] || [];
+    const a0 = (first[0]??'').toString().trim().toUpperCase();
+    const b0 = (first[1]??'').toString().trim().toUpperCase();
+    const hasHeader = (a0==='ID') || (b0==='DETAILS') || (b0==='STATUS');
+    rowsRaw = all.slice(hasHeader?1:0).map(r=>[(r[0]??'').toString().trim(), (r[1]??'').toString().trim()]);
+    console.log('Excel loaded rows:', rowsRaw.length);
+  } catch(err) {
+    console.error(err);
+    document.getElementById('binsGrid').innerHTML='';
+    logMessage('⚠️ Could not load Excel. Make sure book1.xlsx sits next to index.html.', 'error');
+  }
+}
+
+/* CLEANERS / CHECKS */
+function cleanId(text){ return text? String(text).replace(/^\uFEFF/,'').replace(/[\u0000-\u001F\u007F]/g,'').trim():''; }
+function isEMPTY(val){ const v=(val??'').toString().trim().toUpperCase(); return v===''||v==='Y'||v==='EMPTY'; }
+
+/* SEARCH */
+function findNextEmptyLocations(startId,count=EMPTY_COUNT){
+  const idx=rowsRaw.findIndex(r=>r[0]===startId);
+  if(idx===-1) return {foundIndex:-1, locations:[]};
+  const out=[];
+  for(let i=idx+1;i<rowsRaw.length && out.length<count;i++){
+    const row=rowsRaw[i]||[];
+    const a=row[0]??'';
+    const b=row[1]??'';
+    if(isEMPTY(b)&&a) out.push(a);
+  }
+  return {foundIndex:idx, locations:out};
+}
+
+/* RENDER */
+function renderGrouped(locations){
+  const grid=document.getElementById('binsGrid');
+  grid.innerHTML='';
+  let prev=null,colorIndex=-1;
+  const list=locations.slice(0,EMPTY_COUNT);
+  for(let i=0;i<list.length;i++){
+    const code=String(list[i]).trim();
+    const prefix=code.substring(0,8);
+    if(i===0||prefix!==prev) colorIndex=(colorIndex+1)%COLORS.length;
+    prev=prefix;
+    const card=document.createElement('div');
+    card.className='bin-card';
+    card.textContent=code;
+    card.style.background=COLORS[colorIndex];
+    grid.appendChild(card);
+  }
+}
+
+/* SEARCH FORM */
+document.getElementById('searchForm').addEventListener('submit',(ev)=>{
+  ev.preventDefault();
+  const id=cleanId(document.getElementById('id').value);
+  if(!id){ logMessage('Please enter a valid ID.', 'error'); return; }
+  const {foundIndex,locations}=findNextEmptyLocations(id,EMPTY_COUNT);
+  if(foundIndex===-1){ logMessage('ID not found in first column.','error'); return; }
+  if(!locations.length){ logMessage('No empty bins found after the given ID.','info'); document.getElementById('binsGrid').innerHTML=''; return; }
+  renderGrouped(locations);
+});
+
+/* CAMERA / SCANNER - Simplified like 2nd HTML */
+async function startScanner() {
+  if (isScanning) return;
+  const wrap = document.getElementById('scannerWrap');
+  html5QrCode = html5QrCode || new Html5Qrcode("qr-reader");
+  wrap.style.display = "block";
+  isScanning = true;
+
+  try {
+    const devices = await Html5Qrcode.getCameras();
+    let cameraId = devices && devices.length ? devices[0].id : null; // pick first camera
+    await html5QrCode.start(
+      cameraId || { facingMode: "environment" },
+      { fps: 10, qrbox: window.innerWidth < 400 ? 220 : 300 },
+      (decodedText) => {
+        document.getElementById("id").value = cleanId(decodedText);
+        stopScanner();
+        document.getElementById("searchForm").requestSubmit();
+      }
+    );
+  } catch (err) {
+    console.error(err);
+    logMessage("Camera could not start. Check permission/HTTPS", "error");
+    wrap.style.display = "none";
+    isScanning = false;
+  }
+}
+
+async function stopScanner() {
+  if (html5QrCode && isScanning) {
+    try { await html5QrCode.stop(); } catch {}
+  }
+  isScanning = false;
+  document.getElementById("scannerWrap").style.display = "none";
+}
+
+/* INIT */
+document.getElementById('scanBtn').addEventListener('click',startScanner);
+document.getElementById('stopScanBtn').addEventListener('click',stopScanner);
+
+loadExcel();
+</script>
 </body>
 </html>
