@@ -62,7 +62,7 @@
 /* CONFIG */
 const EMPTY_COUNT = 20;
 const EXCEL_PATH = "./book1.xlsx"; // adjust path if needed
-const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6'];
+const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6']; // Only 3 colors now
 
 /* STATE */
 let rowsRaw = [];
@@ -101,7 +101,13 @@ async function loadExcel() {
 }
 
 /* CLEANERS / CHECKS */
-function cleanId(text){ return text? String(text).replace(/^\uFEFF/,'').replace(/[\u0000-\u001F\u007F]/g,'').trim():''; }
+function cleanId(text){ 
+  if(!text) return '';
+  let val = String(text).replace(/^\uFEFF/, '').replace(/[\u0000-\u001F\u007F]/g,'').trim();
+  // Remove ]C1 prefix if present
+  if(val.startsWith(']C1')) val = val.substring(3);
+  return val;
+}
 function isEMPTY(val){ const v=(val??'').toString().trim().toUpperCase(); return v===''||v==='Y'||v==='EMPTY'; }
 
 /* SEARCH */
