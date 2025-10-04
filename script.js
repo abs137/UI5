@@ -48,7 +48,6 @@ function cleanId(text) {
     .replace(/[\u0000-\u001F\u007F]/g, "") // remove control characters
     .trim();
 }
-console.log(cleanId("]C1ABC123"));
 
 /* ------------ Find next empty locations ------------ */
 function findNextEmptyLocations(startId, count = EMPTY_COUNT) {
@@ -70,7 +69,7 @@ function renderGroupedLocations(locations) {
 
   let currentGroup = null;
   let colorIndex = -1;
-  const colors = ["#f0f8ff", "#fff0f0", "#f0fff0"]; // 3 colors
+  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd"]; // 3 colors
 
   locations.forEach(loc => {
     const groupKey = loc.substring(0, 8);
@@ -124,31 +123,61 @@ const scanBtn = document.getElementById("scanBtn");
 const stopScanBtn = document.getElementById("stopScanBtn");
 const scannerWrap = document.getElementById("scannerWrap");
 const idInput = document.getElementById("id");
+const torchBtn = document.getElementById("torchToggleBtn");
+const torchWrap = document.getElementById("torchControls");
+
 
 scanBtn.addEventListener("click", async () => {
-  if (isScanning) return;
-  try {
-    if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
-    scannerWrap.style.display = "block";
-    isScanning = true;
-
-    await html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      (decodedText) => {
-        const clean = cleanId(decodedText);
-        idInput.value = clean;
-        stopScanning();
-        document.getElementById("searchForm").requestSubmit();
+    if (isScanning) return;
+    try {
+      if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
+      scannerWrap.style.display = "block";
+      torchWrap.style.display = "block"; // show flashlight control
+      isScanning = true;
+  
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: 250,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        },
+        (decodedText) => {
+          const clean = cleanId(decodedText);
+          idInput.value = clean;
+          stopScanning();
+          document.getElementById("searchForm").requestSubmit();
+        }
+      );
+    } catch (err) {
+      isScanning = false;
+      console.error(err);
+      alert("Could not start camera. Ensure permission is allowed and you're on HTTPS.");
+      scannerWrap.style.display = "none";
+      torchWrap.style.display = "none";
+    }
+  });
+  
+  torchBtn.addEventListener("click", async () => {
+    if (!html5QrCode) return;
+    try {
+      const capabilities = await html5QrCode.getRunningTrackCapabilities();
+      if (capabilities.torch) {
+        const isOn = torchBtn.dataset.torchOn === "true";
+        await html5QrCode.applyVideoConstraints({
+          advanced: [{ torch: !isOn }]
+        });
+        torchBtn.dataset.torchOn = (!isOn).toString();
+        torchBtn.textContent = isOn ? "💡 Turn ON Flashlight" : "🔦 Turn OFF Flashlight";
+      } else {
+        alert("Flashlight not supported on this device/browser.");
       }
-    );
-  } catch (err) {
-    isScanning = false;
-    console.error(err);
-    alert("Could not start camera. Ensure permission is allowed and you're on HTTPS.");
-    scannerWrap.style.display = "none";
-  }
-});
+    } catch (err) {
+      console.error("Torch error:", err);
+    }
+  });
 
 stopScanBtn.addEventListener("click", stopScanning);
 
