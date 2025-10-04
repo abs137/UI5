@@ -44,7 +44,7 @@ function isEMPTY(val) {
 function cleanId(text) {
   if (!text) return "";
   return String(text)
-    .replace(/^\][A-Z0-9]{2}/i, "")         // removes any barcode prefix like ]C1, ]D2, etc.
+    .replace(/^\][A-Z0-9]{2}/i, "")         // removes barcode prefix like ]C1
     .replace(/[\u0000-\u001F\u007F]/g, "") // remove control characters
     .trim();
 }
@@ -116,9 +116,12 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   output.appendChild(renderGroupedLocations(locations));
 });
 
-/* ------------ Camera scanning (html5-qrcode) ------------ */
+/* ------------ Camera scanning with auto-flash & better focus ------------ */
 let html5QrCode = null;
 let isScanning = false;
+let videoTrack = null;
+let torchTimeout = null;
+
 const scanBtn = document.getElementById("scanBtn");
 const stopScanBtn = document.getElementById("stopScanBtn");
 const scannerWrap = document.getElementById("scannerWrap");
@@ -126,67 +129,95 @@ const idInput = document.getElementById("id");
 const torchBtn = document.getElementById("torchToggleBtn");
 const torchWrap = document.getElementById("torchControls");
 
-
 scanBtn.addEventListener("click", async () => {
-    if (isScanning) return;
-    try {
-      if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
-      scannerWrap.style.display = "block";
-      torchWrap.style.display = "block"; // show flashlight control
-      isScanning = true;
-  
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: 250,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
-        },
-        (decodedText) => {
-          const clean = cleanId(decodedText);
-          idInput.value = clean;
-          stopScanning();
-          document.getElementById("searchForm").requestSubmit();
-        }
-      );
-    } catch (err) {
-      isScanning = false;
-      console.error(err);
-      alert("Could not start camera. Ensure permission is allowed and you're on HTTPS.");
-      scannerWrap.style.display = "none";
-      torchWrap.style.display = "none";
-    }
-  });
-  
-  torchBtn.addEventListener("click", async () => {
-    if (!html5QrCode) return;
-    try {
-      const capabilities = await html5QrCode.getRunningTrackCapabilities();
-      if (capabilities.torch) {
-        const isOn = torchBtn.dataset.torchOn === "true";
-        await html5QrCode.applyVideoConstraints({
-          advanced: [{ torch: !isOn }]
-        });
-        torchBtn.dataset.torchOn = (!isOn).toString();
-        torchBtn.textContent = isOn ? "💡 Turn ON Flashlight" : "🔦 Turn OFF Flashlight";
-      } else {
-        alert("Flashlight not supported on this device/browser.");
-      }
-    } catch (err) {
-      console.error("Torch error:", err);
-    }
-  });
+  if (isScanning) return;
 
+  try {
+    if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader");
+    scannerWrap.style.display = "block";
+    torchWrap.style.display = "block";
+    isScanning = true;
+
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: 250,
+        aspectRatio: 1.777,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        videoConstraints: {
+          focusMode: "continuous",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      },
+      (decodedText) => {
+        clearTimeout(torchTimeout);
+        const clean = cleanId(decodedText);
+        idInput.value = clean;
+        stopScanning();
+        document.getElementById("searchForm").requestSubmit();
+      }
+    );
+
+    // get track for torch control
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    videoTrack = stream.getVideoTracks()[0];
+
+    // Auto torch if no scan after 5 seconds
+    torchTimeout = setTimeout(() => enableTorch(true), 5000);
+
+  } catch (err) {
+    console.error(err);
+    isScanning = false;
+    alert("Could not start camera. Ensure permission is allowed and HTTPS is used.");
+    scannerWrap.style.display = "none";
+    torchWrap.style.display = "none";
+  }
+});
+
+// Torch toggle button
+torchBtn.addEventListener("click", async () => {
+  if (!videoTrack) return;
+  try {
+    const capabilities = videoTrack.getCapabilities();
+    if (capabilities.torch) {
+      const isOn = torchBtn.dataset.torchOn === "true";
+      await videoTrack.applyConstraints({ advanced: [{ torch: !isOn }] });
+      torchBtn.dataset.torchOn = (!isOn).toString();
+      torchBtn.textContent = isOn ? "💡 Turn ON Flashlight" : "🔦 Turn OFF Flashlight";
+    } else {
+      alert("Flashlight not supported on this device/browser.");
+    }
+  } catch (err) {
+    console.error("Torch error:", err);
+  }
+});
+
+// Stop scanning
 stopScanBtn.addEventListener("click", stopScanning);
 
 async function stopScanning() {
+  clearTimeout(torchTimeout);
   if (html5QrCode && isScanning) {
     try { await html5QrCode.stop(); } catch (_) {}
   }
   isScanning = false;
   scannerWrap.style.display = "none";
+  torchWrap.style.display = "none";
+  enableTorch(false);
+}
+
+// Auto torch helper
+async function enableTorch(enable) {
+  if (!videoTrack) return;
+  try {
+    await videoTrack.applyConstraints({ advanced: [{ torch: enable }] });
+    torchBtn.dataset.torchOn = enable.toString();
+    torchBtn.textContent = enable ? "🔦 Turn OFF Flashlight" : "💡 Turn ON Flashlight";
+  } catch (err) {
+    console.warn("Torch not supported:", err);
+  }
 }
 
 /* ------------ Init ------------ */
