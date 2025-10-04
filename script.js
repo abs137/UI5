@@ -70,7 +70,7 @@ function renderGroupedLocations(locations) {
 
   let currentGroup = null;
   let colorIndex = -1;
-  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd"]; // 3 colors
+  const colors = ["#f0f8ff", "#fff0f0", "#f0fff0"]; // 3 colors
 
   locations.forEach(loc => {
     const groupKey = loc.substring(0, 8);
