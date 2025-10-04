@@ -44,10 +44,11 @@ function isEMPTY(val) {
 function cleanId(text) {
   if (!text) return "";
   return String(text)
-    .replace(/^\].{2}/, "")                // removes any barcode prefix like ]C1, ]D2, etc.
+    .replace(/^\][A-Z0-9]{2}/i, "")         // removes any barcode prefix like ]C1, ]D2, etc.
     .replace(/[\u0000-\u001F\u007F]/g, "") // remove control characters
     .trim();
 }
+console.log(cleanId("]C1ABC123"));
 
 /* ------------ Find next empty locations ------------ */
 function findNextEmptyLocations(startId, count = EMPTY_COUNT) {
@@ -69,7 +70,7 @@ function renderGroupedLocations(locations) {
 
   let currentGroup = null;
   let colorIndex = -1;
-  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd", "#fff3cd", "#e0bbff"]; // 5 colors
+  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd"]; // 3 colors
 
   locations.forEach(loc => {
     const groupKey = loc.substring(0, 8);
