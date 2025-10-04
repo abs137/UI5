@@ -13,15 +13,12 @@
       --muted: #64748b;
       --primary: #2563eb;
       --secondary: #64748b;
-      --success: #10b981;
-      --warning: #facc15;
       --radius: 12px;
       --shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
       --transition: all 0.25s ease-in-out;
     }
-  
+
     * { box-sizing: border-box; }
-  
     body {
       margin: 0;
       padding: 40px 16px;
@@ -29,7 +26,7 @@
       background: linear-gradient(135deg, #e0ecff, #f9fafc);
       color: var(--text);
     }
-  
+
     .card {
       max-width: 900px;
       margin: auto;
@@ -39,18 +36,9 @@
       box-shadow: var(--shadow);
       transition: var(--transition);
     }
-  
-    .card:hover {
-      transform: translateY(-2px);
-    }
-  
-    h1 {
-      text-align: center;
-      font-size: 1.8rem;
-      margin-bottom: 24px;
-      color: var(--primary);
-    }
-  
+
+    h1 { text-align: center; font-size: 1.8rem; margin-bottom: 24px; color: var(--primary); }
+
     form {
       display: flex;
       gap: 10px;
@@ -58,7 +46,7 @@
       justify-content: center;
       margin-bottom: 20px;
     }
-  
+
     input[type="text"] {
       flex: 1 1 260px;
       min-width: 180px;
@@ -68,13 +56,13 @@
       font-size: 1rem;
       transition: var(--transition);
     }
-  
+
     input[type="text"]:focus {
       border-color: var(--primary);
       outline: none;
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }
-  
+
     button {
       padding: 12px 18px;
       border-radius: var(--radius);
@@ -84,52 +72,25 @@
       font-weight: 500;
       transition: var(--transition);
     }
-  
-    button[type="submit"] {
-      background: var(--primary);
-      color: white;
-    }
-  
-    button.secondary {
-      background: var(--secondary);
-      color: white;
-    }
-  
-    button:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-  
-    #scannerWrap {
-      display: none;
-      margin-top: 16px;
-      text-align: center;
-      padding: 10px;
-      border: 1px dashed #cbd5e1;
-      border-radius: var(--radius);
-      background: #f8fafc;
-    }
-  
-    #qr-reader {
-      width: 100%;
-      max-width: 360px;
-      margin: 0 auto;
-    }
-  
-    .muted {
-      color: var(--muted);
-      font-size: 0.92rem;
-      margin-top: 6px;
-      text-align: center;
-    }
-  
+
+    button[type="submit"] { background: var(--primary); color: white; }
+    button.secondary { background: var(--secondary); color: white; }
+
+    #scannerWrap { display: none; margin-top: 16px; text-align: center; padding: 10px; border: 1px dashed #cbd5e1; border-radius: var(--radius); background: #f8fafc; }
+
+    #qr-reader { width: 100%; max-width: 360px; margin: 0 auto; }
+    .muted { color: var(--muted); font-size: 0.92rem; margin-top: 6px; text-align: center; }
+
+    #torchControls { text-align: center; margin-top: 10px; display: none; }
+    .scanner-controls { text-align: center; margin-top: 8px; }
+
     #binsGrid {
       margin-top: 20px;
       display: grid;
       gap: 12px;
       grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     }
-  
+
     .bin-card {
       padding: 18px;
       border-radius: var(--radius);
@@ -140,72 +101,35 @@
       box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
       transition: var(--transition);
     }
-  
-    .bin-card:hover {
-      transform: translateY(-3px);
-      background: #e0f2fe;
-    }
-  
-    .notice, .error {
-      padding: 10px;
-      border-radius: var(--radius);
-      margin-bottom: 10px;
-      font-weight: 500;
-    }
-  
-    .notice {
-      background: #fff8e1;
-      color: #8a6d3b;
-      border: 1px solid #ffe58f;
-    }
-  
-    .error {
-      background: #ffe6e6;
-      color: #7a1f1f;
-      border: 1px solid #ffb3b3;
-    }
-  
-    @media (max-width: 480px) {
-      input[type="text"] {
-        flex-basis: 100%;
-      }
-    }
+
+    .bin-card:hover { transform: translateY(-3px); background: #e0f2fe; }
+
+    @media (max-width: 480px) { input[type="text"] { flex-basis: 100%; } }
   </style>
-  
 </head>
 <body>
   <div class="card">
-    <!-- Search Form -->
     <form id="searchForm">
       <input id="id" type="text" placeholder="Enter or scan ID" autocomplete="off" />
       <button type="submit">Search</button>
       <button type="button" id="scanBtn" class="secondary">📷 Scan</button>
     </form>
 
-    <!-- Scanner -->
-    <div id="scannerWrap" aria-hidden="true">
+    <div id="scannerWrap">
       <div id="qr-reader"></div>
-      <div class="muted">Allow camera permission. Use rear camera on phones for scanning barcodes.</div>
-      <div id="torchControls" style="text-align:center; margin-top:10px; display:none;">
-        <button id="torchToggleBtn" type="button">💡 Turn ON Flashlight</button>
-      </div>      
-      <div style="text-align:center; margin-top:8px;">
+      <div class="muted">Allow camera permission. Use rear camera for scanning barcodes.</div>
+      <div class="scanner-controls">
         <button id="stopScanBtn" type="button">Stop camera</button>
       </div>
     </div>
 
-    <!-- Output bins -->
     <div id="output">
-      <div id="binsGrid" class="bins-grid" aria-live="polite"></div>
+      <div id="binsGrid" aria-live="polite"></div>
     </div>
-
-    <div id="messageArea" style="margin-top:12px"></div>
   </div>
 
-  <!-- SheetJS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <!-- html5-qrcode -->
   <script src="https://unpkg.com/html5-qrcode" defer></script>
-  <script src="script.js" ></script>
+  <script src="script.js"></script>
 </body>
 </html>
