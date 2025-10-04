@@ -43,10 +43,12 @@ function isEMPTY(val) {
 // Make the typed/scanned ID safe for comparison
 function cleanId(text) {
   if (!text) return "";
-  return String(text)
-    .replace(/^\].{2}/, "")                // removes any barcode prefix like ]C1, ]D2, etc.
+  let t = String(text)
     .replace(/[\u0000-\u001F\u007F]/g, "") // remove control characters
     .trim();
+  // Remove ]C1 prefix if it exists at the start
+  if (t.startsWith("]C1")) t = t.slice(3);
+  return t;
 }
 
 /* ------------ Find next empty locations ------------ */
