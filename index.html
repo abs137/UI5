@@ -17,25 +17,35 @@
     * { box-sizing: border-box; }
     body { margin:0; padding:16px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:var(--bg); color:var(--text); }
     .card { max-width:980px; margin:0 auto; background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:0 4px 18px rgba(2,6,23,0.06); }
-    form { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
-    input[type="text"] { flex:1 1 220px; min-width:120px; padding:10px 12px; border:1px solid #e6eef8; border-radius:8px; font-size:1rem; }
+
+    /* Form: two-column layout */
+    form { display: grid; grid-template-columns: 1fr auto; gap:8px; align-items: center; margin-bottom:12px; }
+
+    /* Input + button styling */
+    input[type="text"] { width:100%; padding:10px 12px; border:1px solid #e6eef8; border-radius:8px; font-size:1rem; }
     button { padding:10px 12px; border-radius:8px; border:0; background:var(--primary); color:#fff; cursor:pointer; font-size:1rem; }
     button.secondary { background:#64748b; }
+
+    /* Scanner */
     #scannerWrap { display:none; margin-top:10px; text-align:center; }
     #qr-reader { width:100%; max-width:360px; margin:0 auto; }
     .muted { color:var(--muted); font-size:.88rem; margin-top:6px; text-align:center; }
+
+    /* Output bins */
     #output { margin-top:14px; }
-    .bins-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
-    .bin-card { padding:14px; border-radius:10px; font-weight:600; text-align:center; box-shadow:0 1px 6px rgba(2,6,23,0.06); font-size:0.95rem; word-break:break-all; }
+    .bins-grid { display:flex; flex-direction:column; gap:10px; }
+    .bin-card { padding:16px; border-radius:10px; font-weight:600; text-align:center; box-shadow:0 1px 6px rgba(2,6,23,0.06); font-size:1.05rem; word-break:break-all; }
+
+    /* Message boxes */
     .notice { padding:10px; border-radius:8px; background:#fff3cd; color:#6b3b00; border:1px solid #ffeeba; margin-bottom:10px; font-size:0.9rem; }
     .error { padding:10px; border-radius:8px; background:#ffe6e6; color:#7a1f1f; border:1px solid #ffb3b3; margin-bottom:10px; font-size:0.9rem; }
 
     /* MOBILE RESPONSIVE */
-    @media (max-width:480px){
-      input[type="text"] { flex-basis:100%; font-size:1rem; }
-      button { flex:1 1 100%; font-size:1rem; }
-      .bins-grid { grid-template-columns:repeat(auto-fill, minmax(100px,1fr)); gap:8px; }
-      .bin-card { padding:10px; font-size:0.9rem; }
+    @media(max-width:480px){
+      form { grid-template-columns: 1fr auto; gap:6px; }
+      input[type="text"] { font-size:0.95rem; }
+      button { font-size:0.95rem; }
+      .bin-card { font-size:0.95rem; padding:12px; }
       #qr-reader { max-width:90vw; }
       .muted { font-size:0.85rem; }
     }
@@ -71,7 +81,7 @@
 /* CONFIG */
 const EMPTY_COUNT = 20;
 const EXCEL_PATH = "./book1.xlsx"; // adjust path if needed
-const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6'];
+const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6']; // only 3 colors
 
 /* STATE */
 let rowsRaw = [];
@@ -110,12 +120,7 @@ async function loadExcel() {
 }
 
 /* CLEANERS / CHECKS */
-function cleanId(text){ 
-  if(!text) return '';
-  let val = String(text).replace(/^\uFEFF/, '').replace(/[\u0000-\u001F\u007F]/g,'').trim();
-  if(val.startsWith(']C1')) val = val.substring(3); // remove barcode prefix
-  return val;
-}
+function cleanId(text){ return text? String(text).replace(/^\uFEFF/,'').replace(/[\u0000-\u001F\u007F]/g,'').trim():''; }
 function isEMPTY(val){ const v=(val??'').toString().trim().toUpperCase(); return v===''||v==='Y'||v==='EMPTY'; }
 
 /* SEARCH */
@@ -163,31 +168,27 @@ document.getElementById('searchForm').addEventListener('submit',(ev)=>{
 });
 
 /* CAMERA / SCANNER */
-async function startScanner() {
+async function startScanner(){
   if(isScanning) return;
   const wrap=document.getElementById('scannerWrap');
   html5QrCode=html5QrCode||new Html5Qrcode('qr-reader');
-  wrap.style.display='block';
-  isScanning=true;
-  try {
-    const devices = await Html5Qrcode.getCameras();
-    const cameraId = devices && devices.length ? devices[0].id : null;
-    await html5QrCode.start(
-      cameraId || { facingMode: "environment" },
-      { fps: 10, qrbox: window.innerWidth < 400 ? 220 : 300 },
+  wrap.style.display='block'; isScanning=true;
+  try{
+    const devices=await Html5Qrcode.getCameras();
+    let rearCamera = devices.find(d=>/rear|back|environment|wide|secondary/i.test(d.label));
+    let cameraId = rearCamera ? rearCamera.id : (devices[0]?.id || null);
+    await html5QrCode.start(cameraId || {facingMode:{exact:"environment"}},{fps:10, qrbox:(window.innerWidth<400?220:300)},
       decodedText => {
-        document.getElementById("id").value = cleanId(decodedText);
+        document.getElementById('id').value = cleanId(decodedText);
         stopScanner();
-        document.getElementById("searchForm").requestSubmit();
+        document.getElementById('searchForm').requestSubmit();
       }
     );
-  } catch(err) {
-    console.error(err);
-    logMessage('Camera could not start. Check permission/HTTPS','error');
-    wrap.style.display='none';
-    isScanning=false;
-  }
+  } catch(err){ console.error(err); logMessage('Camera could not start. Check permission/HTTPS','error'); wrap.style.display='none'; isScanning=false; }
 }
+
+document.getElementById('scanBtn').addEventListener('click',startScanner);
+document.getElementById('stopScanBtn').addEventListener('click',stopScanner);
 
 async function stopScanner(){
   if(html5QrCode && isScanning){ try{ await html5QrCode.stop(); }catch{} }
@@ -196,9 +197,6 @@ async function stopScanner(){
 }
 
 /* INIT */
-document.getElementById('scanBtn').addEventListener('click',startScanner);
-document.getElementById('stopScanBtn').addEventListener('click',stopScanner);
-
 loadExcel();
 </script>
 </body>
