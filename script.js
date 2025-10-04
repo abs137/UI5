@@ -122,6 +122,70 @@ let isScanning = false;
 let videoTrack = null;
 let torchTimeout = null;
 
+async function startScanner() {
+  const cameras = await Html5Qrcode.getCameras();
+  if (!cameras || cameras.length === 0) {
+    alert("No camera found!");
+    return;
+  }
+
+  const cameraId = cameras[0].id; // rear camera ideally
+  html5QrCode = new Html5Qrcode("qr-reader");
+
+  isScanning = true;
+  document.getElementById("scannerWrap").style.display = "block";
+
+  await html5QrCode.start(
+    cameraId,
+    {
+      fps: 10,
+      qrbox: 250,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      videoConstraints: { facingMode: "environment", focusMode: "continuous" }
+    },
+    (decodedText) => {
+      clearTimeout(torchTimeout);
+      document.getElementById("id").value = cleanId(decodedText);
+      stopScanner();
+      document.getElementById("searchForm").requestSubmit();
+    },
+    (errorMessage) => {
+      // called on decode failure
+    }
+  );
+
+  // Grab the internal video element and track
+  const video = document.querySelector("#qr-reader video");
+  if (video && video.srcObject) {
+    videoTrack = video.srcObject.getVideoTracks()[0];
+
+    // Auto torch after 5 seconds if barcode not detected
+    torchTimeout = setTimeout(() => {
+      if (videoTrack && videoTrack.getCapabilities().torch) {
+        videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+      }
+    }, 5000);
+  }
+}
+
+async function stopScanner() {
+  clearTimeout(torchTimeout);
+  if (html5QrCode && isScanning) {
+    await html5QrCode.stop();
+  }
+  isScanning = false;
+  document.getElementById("scannerWrap").style.display = "none";
+
+  // turn off torch
+  if (videoTrack) {
+    try { await videoTrack.applyConstraints({ advanced: [{ torch: false }] }); } catch {}
+  }
+}
+
+// Example: button
+document.getElementById("scanBtn").addEventListener("click", startScanner);
+document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
+
 const scanBtn = document.getElementById("scanBtn");
 const stopScanBtn = document.getElementById("stopScanBtn");
 const scannerWrap = document.getElementById("scannerWrap");
