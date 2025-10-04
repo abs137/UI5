@@ -18,18 +18,27 @@
     body { margin:0; padding:16px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:var(--bg); color:var(--text); }
     .card { max-width:980px; margin:0 auto; background:var(--card); border-radius:var(--radius); padding:16px; box-shadow:0 4px 18px rgba(2,6,23,0.06); }
     form { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:12px; }
-    input[type="text"] { flex:1 1 220px; min-width:160px; padding:10px 12px; border:1px solid #e6eef8; border-radius:8px; }
-    button { padding:10px 12px; border-radius:8px; border:0; background:var(--primary); color:#fff; cursor:pointer; }
+    input[type="text"] { flex:1 1 220px; min-width:120px; padding:10px 12px; border:1px solid #e6eef8; border-radius:8px; font-size:1rem; }
+    button { padding:10px 12px; border-radius:8px; border:0; background:var(--primary); color:#fff; cursor:pointer; font-size:1rem; }
     button.secondary { background:#64748b; }
     #scannerWrap { display:none; margin-top:10px; text-align:center; }
     #qr-reader { width:100%; max-width:360px; margin:0 auto; }
-    .muted { color:var(--muted); font-size:.92rem; margin-top:6px; text-align:center; }
+    .muted { color:var(--muted); font-size:.88rem; margin-top:6px; text-align:center; }
     #output { margin-top:14px; }
-    .bins-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); }
-    .bin-card { padding:16px; border-radius:10px; font-weight:600; text-align:center; box-shadow:0 1px 6px rgba(2,6,23,0.06); font-size:1.05rem; }
-    .notice { padding:10px; border-radius:8px; background:#fff3cd; color:#6b3b00; border:1px solid #ffeeba; margin-bottom:10px; }
-    .error { padding:10px; border-radius:8px; background:#ffe6e6; color:#7a1f1f; border:1px solid #ffb3b3; margin-bottom:10px; }
-    @media (max-width:480px) { input[type="text"] { flex-basis:100%; } }
+    .bins-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(120px,1fr)); }
+    .bin-card { padding:14px; border-radius:10px; font-weight:600; text-align:center; box-shadow:0 1px 6px rgba(2,6,23,0.06); font-size:0.95rem; word-break:break-all; }
+    .notice { padding:10px; border-radius:8px; background:#fff3cd; color:#6b3b00; border:1px solid #ffeeba; margin-bottom:10px; font-size:0.9rem; }
+    .error { padding:10px; border-radius:8px; background:#ffe6e6; color:#7a1f1f; border:1px solid #ffb3b3; margin-bottom:10px; font-size:0.9rem; }
+
+    /* MOBILE RESPONSIVE */
+    @media (max-width:480px){
+      input[type="text"] { flex-basis:100%; font-size:1rem; }
+      button { flex:1 1 100%; font-size:1rem; }
+      .bins-grid { grid-template-columns:repeat(auto-fill, minmax(100px,1fr)); gap:8px; }
+      .bin-card { padding:10px; font-size:0.9rem; }
+      #qr-reader { max-width:90vw; }
+      .muted { font-size:0.85rem; }
+    }
   </style>
 </head>
 <body>
@@ -62,7 +71,7 @@
 /* CONFIG */
 const EMPTY_COUNT = 20;
 const EXCEL_PATH = "./book1.xlsx"; // adjust path if needed
-const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6']; // Only 3 colors now
+const COLORS = ['#E6F7FF', '#FFF0F6', '#F0FFF6'];
 
 /* STATE */
 let rowsRaw = [];
@@ -104,8 +113,7 @@ async function loadExcel() {
 function cleanId(text){ 
   if(!text) return '';
   let val = String(text).replace(/^\uFEFF/, '').replace(/[\u0000-\u001F\u007F]/g,'').trim();
-  // Remove ]C1 prefix if present
-  if(val.startsWith(']C1')) val = val.substring(3);
+  if(val.startsWith(']C1')) val = val.substring(3); // remove barcode prefix
   return val;
 }
 function isEMPTY(val){ const v=(val??'').toString().trim().toUpperCase(); return v===''||v==='Y'||v==='EMPTY'; }
@@ -154,40 +162,37 @@ document.getElementById('searchForm').addEventListener('submit',(ev)=>{
   renderGrouped(locations);
 });
 
-/* CAMERA / SCANNER - Simplified like 2nd HTML */
+/* CAMERA / SCANNER */
 async function startScanner() {
-  if (isScanning) return;
-  const wrap = document.getElementById('scannerWrap');
-  html5QrCode = html5QrCode || new Html5Qrcode("qr-reader");
-  wrap.style.display = "block";
-  isScanning = true;
-
+  if(isScanning) return;
+  const wrap=document.getElementById('scannerWrap');
+  html5QrCode=html5QrCode||new Html5Qrcode('qr-reader');
+  wrap.style.display='block';
+  isScanning=true;
   try {
     const devices = await Html5Qrcode.getCameras();
-    let cameraId = devices && devices.length ? devices[0].id : null; // pick first camera
+    const cameraId = devices && devices.length ? devices[0].id : null;
     await html5QrCode.start(
       cameraId || { facingMode: "environment" },
       { fps: 10, qrbox: window.innerWidth < 400 ? 220 : 300 },
-      (decodedText) => {
+      decodedText => {
         document.getElementById("id").value = cleanId(decodedText);
         stopScanner();
         document.getElementById("searchForm").requestSubmit();
       }
     );
-  } catch (err) {
+  } catch(err) {
     console.error(err);
-    logMessage("Camera could not start. Check permission/HTTPS", "error");
-    wrap.style.display = "none";
-    isScanning = false;
+    logMessage('Camera could not start. Check permission/HTTPS','error');
+    wrap.style.display='none';
+    isScanning=false;
   }
 }
 
-async function stopScanner() {
-  if (html5QrCode && isScanning) {
-    try { await html5QrCode.stop(); } catch {}
-  }
-  isScanning = false;
-  document.getElementById("scannerWrap").style.display = "none";
+async function stopScanner(){
+  if(html5QrCode && isScanning){ try{ await html5QrCode.stop(); }catch{} }
+  isScanning=false;
+  document.getElementById('scannerWrap').style.display='none';
 }
 
 /* INIT */
