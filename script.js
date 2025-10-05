@@ -1,16 +1,11 @@
-// Number of empty bins to return by default
 const EMPTY_COUNT = 20;
-
-// Excel data storage
 let rowsRaw = [];
-
-// QR scanner
 let html5QrCode = null;
 let isScanning = false;
 let videoTrack = null;
-let torchTimeout = null;
+let torchOn = false;
 
-/* ------------ Load Excel ------------ */
+/* ---------- Load Excel ---------- */
 async function loadExcel() {
   try {
     const res = await fetch("./book1.xlsx");
@@ -31,14 +26,14 @@ async function loadExcel() {
       (r[1] ?? "").toString().trim()
     ]);
 
-    console.log("Excel loaded. Rows:", rowsRaw.length);
+    console.log("Excel loaded:", rowsRaw.length);
   } catch (err) {
     console.error(err);
     document.getElementById("output").textContent = "⚠️ Could not load Excel file.";
   }
 }
 
-/* ------------ Utilities ------------ */
+/* ---------- Helpers ---------- */
 function isEMPTY(val) {
   const v = (val ?? "").trim().toUpperCase();
   return v === "" || v === "Y" || v === "EMPTY";
@@ -47,12 +42,12 @@ function isEMPTY(val) {
 function cleanId(text) {
   if (!text) return "";
   return String(text)
-    .replace(/^\][A-Z0-9]{2}/i, "")   // remove barcode prefix like ]C1
+    .replace(/^\][A-Z0-9]{2}/i, "")
     .replace(/[\u0000-\u001F\u007F]/g, "")
     .trim();
 }
 
-/* ------------ Find empty bins ------------ */
+/* ---------- Find Empty Locations ---------- */
 function findNextEmptyLocations(startId, count = EMPTY_COUNT) {
   const idx = rowsRaw.findIndex(r => r[0] === startId);
   if (idx === -1) return { foundIndex: -1, locations: [] };
@@ -64,7 +59,7 @@ function findNextEmptyLocations(startId, count = EMPTY_COUNT) {
   return { foundIndex: idx, locations: out };
 }
 
-/* ------------ Render bins ------------ */
+/* ---------- Render Results ---------- */
 function renderGroupedLocations(locations) {
   const frag = document.createDocumentFragment();
   let currentGroup = null, colorIndex = -1;
@@ -86,7 +81,7 @@ function renderGroupedLocations(locations) {
   return frag;
 }
 
-/* ------------ Search Form ------------ */
+/* ---------- Search Form ---------- */
 document.getElementById("searchForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const searchId = cleanId(document.getElementById("id").value);
@@ -112,7 +107,7 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   output.appendChild(renderGroupedLocations(locations));
 });
 
-/* ------------ Scanner ------------ */
+/* ---------- Scanner ---------- */
 async function startScanner() {
   try {
     const cameras = await Html5Qrcode.getCameras();
@@ -121,26 +116,31 @@ async function startScanner() {
     const cameraId = cameras[0].id;
     html5QrCode = new Html5Qrcode("qr-reader");
     isScanning = true;
-    document.getElementById("scannerWrap").style.display = "block";
 
-    await html5QrCode.start(cameraId, {
-      fps: 10,
-      qrbox: 250,
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      videoConstraints: { facingMode: "environment", focusMode: "continuous" }
-    },
-    (decodedText) => {
-      clearTimeout(torchTimeout);
-      document.getElementById("id").value = cleanId(decodedText);
-      stopScanner();
-      document.getElementById("searchForm").requestSubmit();
-    });
+    document.getElementById("scannerWrap").style.display = "block";
+    document.getElementById("torchControls").style.display = "block";
+
+    await html5QrCode.start(
+      cameraId,
+      {
+        fps: 10,
+        qrbox: 250,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        videoConstraints: {
+          facingMode: "environment",
+          focusMode: "continuous"
+        }
+      },
+      (decodedText) => {
+        document.getElementById("id").value = cleanId(decodedText);
+        stopScanner();
+        document.getElementById("searchForm").requestSubmit();
+      }
+    );
 
     const video = document.querySelector("#qr-reader video");
     if (video && video.srcObject) videoTrack = video.srcObject.getVideoTracks()[0];
 
-    // auto-torch after 4 seconds
-    torchTimeout = setTimeout(() => enableTorch(true), 4000);
   } catch (err) {
     console.error(err);
     alert("Could not start camera. Ensure permission is allowed and HTTPS is used.");
@@ -148,26 +148,34 @@ async function startScanner() {
   }
 }
 
+/* ---------- Stop Scanner ---------- */
 async function stopScanner() {
-  clearTimeout(torchTimeout);
   if (html5QrCode && isScanning) await html5QrCode.stop();
   isScanning = false;
   document.getElementById("scannerWrap").style.display = "none";
+  document.getElementById("torchControls").style.display = "none";
   enableTorch(false);
 }
 
+/* ---------- Flashlight (Torch) ---------- */
 async function enableTorch(on) {
   if (!videoTrack) return;
   try {
     await videoTrack.applyConstraints({ advanced: [{ torch: on }] });
+    torchOn = on;
+    const btn = document.getElementById("torchToggleBtn");
+    btn.textContent = on ? "🔦 Turn OFF Flashlight" : "💡 Turn ON Flashlight";
   } catch (err) {
     console.warn("Torch not supported:", err);
   }
 }
 
-/* ------------ Buttons ------------ */
+/* ---------- Buttons ---------- */
 document.getElementById("scanBtn").addEventListener("click", startScanner);
 document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
+document.getElementById("torchToggleBtn").addEventListener("click", () => {
+  enableTorch(!torchOn);
+});
 
-/* ------------ Init ------------ */
+/* ---------- Init ---------- */
 loadExcel();
