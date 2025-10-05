@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Empty Bin Search</title>
@@ -18,7 +19,10 @@
       --transition: all 0.25s ease-in-out;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       padding: 40px 16px;
@@ -37,7 +41,12 @@
       transition: var(--transition);
     }
 
-    h1 { text-align: center; font-size: 1.8rem; margin-bottom: 24px; color: var(--primary); }
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 24px;
+      color: var(--primary);
+    }
 
     form {
       display: flex;
@@ -73,16 +82,49 @@
       transition: var(--transition);
     }
 
-    button[type="submit"] { background: var(--primary); color: white; }
-    button.secondary { background: var(--secondary); color: white; }
+    button[type="submit"] {
+      background: var(--primary);
+      color: white;
+    }
 
-    #scannerWrap { display: none; margin-top: 16px; text-align: center; padding: 10px; border: 1px dashed #cbd5e1; border-radius: var(--radius); background: #f8fafc; }
+    button.secondary {
+      background: var(--secondary);
+      color: white;
+    }
 
-    #qr-reader { width: 100%; max-width: 360px; margin: 0 auto; }
-    .muted { color: var(--muted); font-size: 0.92rem; margin-top: 6px; text-align: center; }
+    #scannerWrap {
+      display: none;
+      margin-top: 16px;
+      text-align: center;
+      padding: 10px;
+      border: 1px dashed #cbd5e1;
+      border-radius: var(--radius);
+      background: #f8fafc;
+    }
 
-    #torchControls { text-align: center; margin-top: 10px; display: none; }
-    .scanner-controls { text-align: center; margin-top: 8px; }
+    #qr-reader {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    #torchControls {
+      text-align: center;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .scanner-controls {
+      text-align: center;
+      margin-top: 8px;
+    }
 
     #binsGrid {
       margin-top: 20px;
@@ -102,11 +144,19 @@
       transition: var(--transition);
     }
 
-    .bin-card:hover { transform: translateY(-3px); background: #e0f2fe; }
+    .bin-card:hover {
+      transform: translateY(-3px);
+      background: #e0f2fe;
+    }
 
-    @media (max-width: 480px) { input[type="text"] { flex-basis: 100%; } }
+    @media (max-width: 480px) {
+      input[type="text"] {
+        flex-basis: 100%;
+      }
+    }
   </style>
 </head>
+
 <body>
   <div class="card">
     <form id="searchForm">
@@ -115,10 +165,12 @@
       <button type="button" id="scanBtn" class="secondary">📷 Scan</button>
     </form>
 
-    <div id="scannerWrap">
-      <div id="qr-reader"></div>
-      <div class="muted">Allow camera permission. Use rear camera for scanning barcodes.</div>
-      <div class="scanner-controls">
+    <div id="scannerWrap" style="display:none;">
+      <div id="qr-reader" style="width:300px; margin:auto;"></div>
+      <div id="torchControls" style="text-align:center; margin-top:10px; display:none;">
+        <button id="torchToggleBtn" type="button">💡 Turn ON Flashlight</button>
+      </div>
+      <div style="text-align:center; margin-top:10px;">
         <button id="stopScanBtn" type="button">Stop camera</button>
       </div>
     </div>
