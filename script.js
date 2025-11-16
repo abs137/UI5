@@ -47,15 +47,30 @@ function cleanId(text) {
     .trim();
 }
 
-/* ---------- Find Empty Locations ---------- */
-function findNextEmptyLocations(startId, count = EMPTY_COUNT) {
+/* ---------- Find Empty Locations (updated) ---------- */
+function findNextEmptyLocations(startId) {
   const idx = rowsRaw.findIndex(r => r[0] === startId);
   if (idx === -1) return { foundIndex: -1, locations: [] };
 
   const out = [];
-  for (let i = idx; i < rowsRaw.length && out.length < count; i++) {
-    if (isEMPTY(rowsRaw[i][1])) out.push(rowsRaw[i][0]);
+
+  // First 5 characters of the scanned ID
+  const prefix = (startId ?? "").toString().substring(0, 5).toUpperCase();
+
+  // Start scanning from the scanned bin row
+  for (let i = idx; i < rowsRaw.length; i++) {
+    const id = (rowsRaw[i][0] ?? "").toString().trim();
+    const detail = rowsRaw[i][1];
+
+    // Stop if prefix changes (or id is empty)
+    if (!id || id.substring(0, 5).toUpperCase() !== prefix) break;
+
+    // Add only empty bins
+    if (isEMPTY(detail)) {
+      out.push(id);
+    }
   }
+
   return { foundIndex: idx, locations: out };
 }
 
