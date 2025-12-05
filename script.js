@@ -278,75 +278,70 @@ function downloadMissingLocations() {
     return;
   }
 
-  // Support both UMD (window.jspdf.jsPDF) and classic (window.jsPDF)
-  const JsPDFConstructor =
-    (window.jspdf && window.jspdf.jsPDF) || // UMD style
-    window.jsPDF;                           // fallback
+  // Works for ALL jsPDF loading methods
+  const JsPDF =
+    (window.jspdf && window.jspdf.jsPDF) || // UMD build
+    window.jsPDF ||                        // older global
+    null;
 
-  if (!JsPDFConstructor) {
+  if (!JsPDF) {
     alert("PDF library (jsPDF) is not loaded. Please check the script tag.");
     return;
   }
 
-  const doc = new JsPDFConstructor({
+  const doc = new JsPDF({
     orientation: "portrait",
     unit: "pt",
-    format: "a4",
+    format: "a4"
   });
 
-  const left = 40;
-  let top = 40;
-  const lineHeight = 18;
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  // Title
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Missing Locations", left, top);
-  top += 24;
-
-  // Timestamp
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const ts = new Date().toISOString().replace("T", " ").slice(0, 16);
-  doc.text(`Generated: ${ts}`, left, top);
-  top += 24;
+  const marginLeft = 40;
+  let y = 40;
+  const lineGap = 18;
+  const pageHeight = doc.internal.pageSize.getHeight() - 40;
 
   // Header
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("LOCATION_ID", left, top);
-  top += 16;
+  doc.setFontSize(14);
+  doc.text("Missing Locations Report", marginLeft, y);
+  y += 24;
 
-  // Rows
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, marginLeft, y);
+  y += 22;
+
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
+  doc.text("LOCATION_ID", marginLeft, y);
+  y += 14;
 
-  const ids = Array.from(missingSet).sort();
+  doc.setFont("helvetica", "normal");
 
-  ids.forEach(id => {
-    if (top + lineHeight > pageHeight - 40) {
+  const ids = [...missingSet].sort();
+
+  for (const id of ids) {
+    if (y > pageHeight) {
       doc.addPage();
-      top = 40;
-
+      y = 40;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("LOCATION_ID (cont.)", left, top);
-      top += 20;
-
+      doc.text("LOCATION_ID (cont.)", marginLeft, y);
+      y += 18;
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
     }
 
-    doc.text(String(id), left, top);
-    top += lineHeight;
-  });
+    doc.text(String(id), marginLeft, y);
+    y += lineGap;
+  }
 
-  const tsName = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
-  const fileName = `missing_locations_${tsName}.pdf`;
+  const ts = new Date()
+    .toISOString()
+    .replace(/[-:T]/g, "")
+    .slice(0, 12);
 
-  doc.save(fileName);
+  doc.save(`missing_locations_${ts}.pdf`);
 }
+
 
 
 /* ---------- Wire buttons & init ---------- */
