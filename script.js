@@ -1,44 +1,35 @@
-const EMPTY_COUNT = 20;
-let rowsRaw = [];
+// ---------------- Global state ----------------
+let rowsRaw = [];             // [ [LOCATION_ID], ... ]
 let html5QrCode = null;
 let isScanning = false;
 let videoTrack = null;
 let torchOn = false;
 
-/* ---------- Load Excel ---------- */
-async function loadExcel() {
+// Missing locations (physically not present)
+let missingSet = new Set();
+
+(function initMissingFromStorage() {
   try {
-    const res = await fetch("./book1.xlsx");
-    if (!res.ok) throw new Error(`Could not fetch Excel: ${res.status}`);
+    const raw = localStorage.getItem("missingLocations");
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) {
+      arr.forEach(id => missingSet.add(String(id)));
+    }
+  } catch (e) {
+    console.warn("Could not load missingLocations from storage:", e);
+  }
+})();
 
-    const data = await res.arrayBuffer();
-    const wb = XLSX.read(data, { type: "array" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const all = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
-
-    const first = all[0] || [];
-    const a0 = (first[0] ?? "").toString().trim().toUpperCase();
-    const b0 = (first[1] ?? "").toString().trim().toUpperCase();
-    const hasHeader = a0 === "ID" || b0 === "DETAILS" || b0 === "STATUS";
-
-    rowsRaw = all.slice(hasHeader ? 1 : 0).map(r => [
-      (r[0] ?? "").toString().trim(),
-      (r[1] ?? "").toString().trim()
-    ]);
-
-    console.log("Excel loaded:", rowsRaw.length);
-  } catch (err) {
-    console.error(err);
-    document.getElementById("output").textContent = "⚠️ Could not load Excel file.";
+function saveMissingToStorage() {
+  try {
+    localStorage.setItem("missingLocations", JSON.stringify(Array.from(missingSet)));
+  } catch (e) {
+    console.warn("Could not save missingLocations to storage:", e);
   }
 }
 
-/* ---------- Helpers ---------- */
-function isEMPTY(val) {
-  const v = (val ?? "").trim().toUpperCase();
-  return v === "" || v === "Y" || v === "EMPTY";
-}
-
+// ---------------- Helpers ----------------
 function cleanId(text) {
   if (!text) return "";
   return String(text)
@@ -47,34 +38,67 @@ function cleanId(text) {
     .trim();
 }
 
-/* ---------- Find Empty Locations (updated) ---------- */
-function findNextEmptyLocations(startId) {
-  const idx = rowsRaw.findIndex(r => r[0] === startId);
-  if (idx === -1) return { foundIndex: -1, locations: [] };
-
-  const out = [];
-
-  // First 5 characters of the scanned ID
-  const prefix = (startId ?? "").toString().substring(0, 5).toUpperCase();
-
-  // Start scanning from the scanned bin row
-  for (let i = idx; i < rowsRaw.length; i++) {
-    const id = (rowsRaw[i][0] ?? "").toString().trim();
-    const detail = rowsRaw[i][1];
-
-    // Stop if prefix changes (or id is empty)
-    if (!id || id.substring(0, 5).toUpperCase() !== prefix) break;
-
-    // Add only empty bins
-    if (isEMPTY(detail)) {
-      out.push(id);
-    }
+// Read ?id=... from URL and auto-run search
+function runFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("id");
+  if (id) {
+    const input = document.getElementById("id");
+    input.value = cleanId(id);
+    document.getElementById("searchForm").requestSubmit();
   }
-
-  return { foundIndex: idx, locations: out };
 }
 
-/* ---------- Render Results ---------- */
+// ---------------- Load CSV (empty-only) ----------------
+async function loadCsv() {
+  try {
+    // cache-buster query to avoid stale file
+    const res = await fetch(`./book1_web.csv?ts=${Date.now()}`);
+    if (!res.ok) throw new Error(`Could not fetch CSV: ${res.status}`);
+
+    const text = await res.text();
+    const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+    if (lines.length <= 1) {
+      console.warn("CSV has header only or is empty.");
+      rowsRaw = [];
+      return;
+    }
+
+    // first line is header: LOCATION_ID
+    rowsRaw = lines.slice(1).map(line => {
+      const id = line.split(",")[0] ?? "";
+      return [id.trim()];
+    });
+
+    console.log("CSV loaded, rows:", rowsRaw.length);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("output").textContent = "⚠️ Could not load locations file.";
+  }
+}
+
+// ---------------- Core search logic (empty-only) ----------------
+function findNextEmptyLocations(startId) {
+  const start = (startId ?? "").trim();
+  if (!start) return { foundIndex: -1, locations: [] };
+
+  const prefix = start.substring(0, 5).toUpperCase();
+
+  const locations = rowsRaw
+    .map(r => (r[0] ?? "").trim())
+    .filter(id =>
+      id &&
+      id.toUpperCase().startsWith(prefix) &&
+      id >= start
+    );
+
+  return {
+    foundIndex: locations.length ? 0 : -1,
+    locations
+  };
+}
+
+// ---------------- Render results ----------------
 function renderGroupedLocations(locations) {
   const frag = document.createDocumentFragment();
   let currentGroup = null, colorIndex = -1;
@@ -86,31 +110,57 @@ function renderGroupedLocations(locations) {
       currentGroup = groupKey;
       colorIndex = (colorIndex + 1) % colors.length;
     }
+
     const div = document.createElement("div");
     div.className = "bin-card";
     div.textContent = loc;
     div.style.backgroundColor = colors[colorIndex];
+
+    // If already marked missing, show it
+    if (missingSet.has(loc)) {
+      div.classList.add("missing");
+    }
+
+    // Click to toggle missing status
+    div.addEventListener("click", () => {
+      if (missingSet.has(loc)) {
+        missingSet.delete(loc);
+        div.classList.remove("missing");
+      } else {
+        missingSet.add(loc);
+        div.classList.add("missing");
+      }
+      saveMissingToStorage();
+    });
+
     frag.appendChild(div);
   });
 
   return frag;
 }
 
-/* ---------- Search Form ---------- */
+// ---------------- Search form ----------------
 document.getElementById("searchForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const searchId = cleanId(document.getElementById("id").value);
   const output = document.getElementById("output");
-  output.innerHTML = "";
+  const grid = document.getElementById("binsGrid");
+  grid.innerHTML = "";
 
   if (!searchId) {
     output.innerHTML = `<p style="color:red">Please enter a valid ID.</p>`;
     return;
   }
 
+  if (!rowsRaw.length) {
+    output.innerHTML = `<p style="color:red">Data not loaded yet. Please try again in a moment.</p>`;
+    return;
+  }
+
   const { foundIndex, locations } = findNextEmptyLocations(searchId);
+
   if (foundIndex === -1) {
-    output.innerHTML = `<p style="color:red">ID not found.</p>`;
+    output.innerHTML = `<p style="color:red">No empty bins found after this ID in the same area.</p>`;
     return;
   }
 
@@ -119,14 +169,19 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
     return;
   }
 
-  output.appendChild(renderGroupedLocations(locations));
+  // Clear any text and insert grid
+  output.innerHTML = "";
+  grid.appendChild(renderGroupedLocations(locations));
 });
 
-/* ---------- Scanner ---------- */
+// ---------------- Scanner ----------------
 async function startScanner() {
   try {
     const cameras = await Html5Qrcode.getCameras();
-    if (!cameras || cameras.length === 0) return alert("No camera found!");
+    if (!cameras || cameras.length === 0) {
+      alert("No camera found!");
+      return;
+    }
 
     const cameraId = cameras[0].id;
     html5QrCode = new Html5Qrcode("qr-reader");
@@ -154,7 +209,9 @@ async function startScanner() {
     );
 
     const video = document.querySelector("#qr-reader video");
-    if (video && video.srcObject) videoTrack = video.srcObject.getVideoTracks()[0];
+    if (video && video.srcObject) {
+      videoTrack = video.srcObject.getVideoTracks()[0];
+    }
 
   } catch (err) {
     console.error(err);
@@ -163,16 +220,20 @@ async function startScanner() {
   }
 }
 
-/* ---------- Stop Scanner ---------- */
 async function stopScanner() {
-  if (html5QrCode && isScanning) await html5QrCode.stop();
+  if (html5QrCode && isScanning) {
+    try {
+      await html5QrCode.stop();
+    } catch (e) {
+      console.warn("Error stopping scanner:", e);
+    }
+  }
   isScanning = false;
   document.getElementById("scannerWrap").style.display = "none";
   document.getElementById("torchControls").style.display = "none";
   enableTorch(false);
 }
 
-/* ---------- Flashlight (Torch) ---------- */
 async function enableTorch(on) {
   if (!videoTrack) return;
   try {
@@ -185,12 +246,41 @@ async function enableTorch(on) {
   }
 }
 
-/* ---------- Buttons ---------- */
+// ---------------- Missing locations download ----------------
+function downloadMissingLocations() {
+  if (missingSet.size === 0) {
+    alert("No missing locations have been marked yet.");
+    return;
+  }
+
+  const rows = ["LOCATION_ID"];
+  missingSet.forEach(id => {
+    rows.push(id);
+  });
+
+  const csvContent = rows.join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+
+  const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+  const fileName = `missing_locations_${ts}.csv`;
+
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// ---------------- Button wiring & init ----------------
 document.getElementById("scanBtn").addEventListener("click", startScanner);
 document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
 document.getElementById("torchToggleBtn").addEventListener("click", () => {
   enableTorch(!torchOn);
 });
+document.getElementById("downloadMissingBtn").addEventListener("click", downloadMissingLocations);
 
-/* ---------- Init ---------- */
-loadExcel();
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadCsv();
+  runFromURL(); // supports ?id=... in the link
+});
