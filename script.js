@@ -278,17 +278,25 @@ function downloadMissingLocations() {
     return;
   }
 
-  // jsPDF from the global window object
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({
+  // Support both UMD (window.jspdf.jsPDF) and classic (window.jsPDF)
+  const JsPDFConstructor =
+    (window.jspdf && window.jspdf.jsPDF) || // UMD style
+    window.jsPDF;                           // fallback
+
+  if (!JsPDFConstructor) {
+    alert("PDF library (jsPDF) is not loaded. Please check the script tag.");
+    return;
+  }
+
+  const doc = new JsPDFConstructor({
     orientation: "portrait",
     unit: "pt",
     format: "a4",
   });
 
-  const left = 40;       // left margin
-  let top = 40;          // start y position
-  const lineHeight = 18; // line spacing
+  const left = 40;
+  let top = 40;
+  const lineHeight = 18;
   const pageHeight = doc.internal.pageSize.getHeight();
 
   // Title
@@ -297,7 +305,7 @@ function downloadMissingLocations() {
   doc.text("Missing Locations", left, top);
   top += 24;
 
-  // Small info line
+  // Timestamp
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   const ts = new Date().toISOString().replace("T", " ").slice(0, 16);
@@ -310,13 +318,13 @@ function downloadMissingLocations() {
   doc.text("LOCATION_ID", left, top);
   top += 16;
 
-  // Content
+  // Rows
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
 
-  const ids = Array.from(missingSet).sort(); // sorted for neatness
+  const ids = Array.from(missingSet).sort();
+
   ids.forEach(id => {
-    // If we are near bottom of page, add a new page
     if (top + lineHeight > pageHeight - 40) {
       doc.addPage();
       top = 40;
@@ -336,9 +344,9 @@ function downloadMissingLocations() {
 
   const tsName = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
   const fileName = `missing_locations_${tsName}.pdf`;
+
   doc.save(fileName);
 }
-
 
 
 /* ---------- Wire buttons & init ---------- */
