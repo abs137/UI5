@@ -38,7 +38,6 @@
       border-radius: var(--radius);
       padding: 28px;
       box-shadow: var(--shadow);
-      transition: var(--transition);
     }
 
     h1 {
@@ -121,11 +120,6 @@
       display: none;
     }
 
-    .scanner-controls {
-      text-align: center;
-      margin-top: 8px;
-    }
-
     #binsGrid {
       margin-top: 20px;
       display: grid;
@@ -194,8 +188,7 @@
 
     <div class="top-actions">
       <div class="info-text">
-        Tap a bin to mark it as <strong>physically missing</strong>.  
-        Marked bins are outlined in red.
+        Tap a bin to mark it as <strong>physically missing</strong>. Marked bins are outlined in red.
       </div>
       <button type="button" id="downloadMissingBtn" class="secondary">
         ⬇ Download Missing Locations
@@ -217,7 +210,8 @@
     </div>
   </div>
 
-  <!-- Only html5-qrcode is needed now -->
+  <!-- Excel + scanner libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode" defer></script>
   <script src="script.js"></script>
 </body>
