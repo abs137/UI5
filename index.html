@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Empty Bin Search</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --secondary: #64748b;
+      --radius: 12px;
+      --shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+      --transition: all 0.25s ease-in-out;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 40px 16px;
+      font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+      background: linear-gradient(135deg, #e0ecff, #f9fafc);
+      color: var(--text);
+    }
+
+    .card {
+      max-width: 900px;
+      margin: auto;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      transition: var(--transition);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 24px;
+      color: var(--primary);
+    }
+
+    form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      flex: 1 1 260px;
+      min-width: 180px;
+      padding: 12px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      transition: var(--transition);
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    button {
+      padding: 12px 18px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+
+    button[type="submit"] {
+      background: var(--primary);
+      color: white;
+    }
+
+    button.secondary {
+      background: var(--secondary);
+      color: white;
+    }
+
+    #scannerWrap {
+      display: none;
+      margin-top: 16px;
+      text-align: center;
+      padding: 10px;
+      border: 1px dashed #cbd5e1;
+      border-radius: var(--radius);
+      background: #f8fafc;
+    }
+
+    #qr-reader {
+      width: 100%;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    #torchControls {
+      text-align: center;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .scanner-controls {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    #binsGrid {
+      margin-top: 20px;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+
+    .bin-card {
+      padding: 18px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      text-align: center;
+      background: #f1f5f9;
+      color: var(--text);
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+      transition: var(--transition);
+    }
+
+    .bin-card:hover {
+      transform: translateY(-3px);
+      background: #e0f2fe;
+    }
+
+    @media (max-width: 480px) {
+      input[type="text"] {
+        flex-basis: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <form id="searchForm">
+      <input id="id" type="text" placeholder="Enter or scan ID" autocomplete="off" />
+      <button type="submit">Search</button>
+      <button type="button" id="scanBtn" class="secondary">📷 Scan</button>
+    </form>
+
+    <div id="scannerWrap" style="display:none;">
+      <div id="qr-reader" style="width:300px; margin:auto;"></div>
+      <div id="torchControls" style="text-align:center; margin-top:10px; display:none;">
+        <button id="torchToggleBtn" type="button">💡 Turn ON Flashlight</button>
+      </div>
+      <div style="text-align:center; margin-top:10px;">
+        <button id="stopScanBtn" type="button">Stop camera</button>
+      </div>
+    </div>
+
+    <div id="output">
+      <div id="binsGrid" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <script src="script.js"></script>
+</body>
+</html>
