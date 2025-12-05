@@ -278,19 +278,67 @@ function downloadMissingLocations() {
     return;
   }
 
-  // Create worksheet data
-  const wb = XLSX.utils.book_new();
-  const ws_data = [["LOCATION_ID"]];
-  missingSet.forEach(id => ws_data.push([id]));
+  // jsPDF from the global window object
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4",
+  });
 
-  const ws = XLSX.utils.aoa_to_sheet(ws_data);
-  XLSX.utils.book_append_sheet(wb, ws, "Missing_Locations");
+  const left = 40;       // left margin
+  let top = 40;          // start y position
+  const lineHeight = 18; // line spacing
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
-  const fileName = `missing_locations_${ts}.xlsx`;
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Missing Locations", left, top);
+  top += 24;
 
-  XLSX.writeFile(wb, fileName);
+  // Small info line
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const ts = new Date().toISOString().replace("T", " ").slice(0, 16);
+  doc.text(`Generated: ${ts}`, left, top);
+  top += 24;
+
+  // Header
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("LOCATION_ID", left, top);
+  top += 16;
+
+  // Content
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+
+  const ids = Array.from(missingSet).sort(); // sorted for neatness
+  ids.forEach(id => {
+    // If we are near bottom of page, add a new page
+    if (top + lineHeight > pageHeight - 40) {
+      doc.addPage();
+      top = 40;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("LOCATION_ID (cont.)", left, top);
+      top += 20;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+    }
+
+    doc.text(String(id), left, top);
+    top += lineHeight;
+  });
+
+  const tsName = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+  const fileName = `missing_locations_${tsName}.pdf`;
+  doc.save(fileName);
 }
+
 
 
 /* ---------- Wire buttons & init ---------- */
