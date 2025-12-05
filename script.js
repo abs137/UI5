@@ -278,22 +278,20 @@ function downloadMissingLocations() {
     return;
   }
 
-  const rows = ["LOCATION_ID"];
-  missingSet.forEach(id => rows.push(id));
+  // Create worksheet data
+  const wb = XLSX.utils.book_new();
+  const ws_data = [["LOCATION_ID"]];
+  missingSet.forEach(id => ws_data.push([id]));
 
-  const csvContent = rows.join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb, ws, "Missing_Locations");
 
   const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
-  const fileName = `missing_locations_${ts}.csv`;
+  const fileName = `missing_locations_${ts}.xlsx`;
 
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  XLSX.writeFile(wb, fileName);
 }
+
 
 /* ---------- Wire buttons & init ---------- */
 document.getElementById("scanBtn").addEventListener("click", startScanner);
