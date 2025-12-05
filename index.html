@@ -38,6 +38,7 @@
       border-radius: var(--radius);
       padding: 28px;
       box-shadow: var(--shadow);
+      transition: var(--transition);
     }
 
     h1 {
@@ -206,15 +207,24 @@
     </div>
 
     <div id="output">
+      <!-- message area for errors/status -->
       <div id="message"></div>
+      <!-- grid for bins; JS just fills this -->
       <div id="binsGrid" aria-live="polite"></div>
     </div>
   </div>
 
-  <!-- Excel + scanner libs -->
+  <!-- Excel library (for reading book1.xlsx / EmptyBinData.xlsx) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- QR / barcode scanner -->
   <script src="https://unpkg.com/html5-qrcode" defer></script>
+
+  <!-- PDF library for Missing Locations report -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Your main logic -->
   <script src="script.js"></script>
 </body>
-</html>
 
+</html>
