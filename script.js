@@ -1,18 +1,17 @@
-// --------- CONFIG ----------
-const EXCEL_URL = "./book1.xlsx";   // change here if your file has different name
-const EMPTY_COUNT = 20;             // not strictly used, but kept for future
-// ----------------------------
+// ------------- CONFIG -------------
+const EXCEL_URL = "./book1.xlsx";   // <-- CHANGE to your real file name if needed
+// ----------------------------------
 
-let rowsRaw = [];       // [ [LOCATION_ID, STATUS/ITEM], ... ] from Excel
+let rowsRaw = []; // [ [LOCATION_ID, ITEM], ... ]
 let html5QrCode = null;
 let isScanning = false;
 let videoTrack = null;
 let torchOn = false;
 
-// Missing locations (physically not present)
+// Missing locations tracking
 let missingSet = new Set();
 
-// Load missing IDs from localStorage on startup
+// Restore missing locations from localStorage
 (function initMissingFromStorage() {
   try {
     const raw = localStorage.getItem("missingLocations");
@@ -34,13 +33,13 @@ function saveMissingToStorage() {
   }
 }
 
-/* ---------- Load Excel (all bins, 2 columns) ---------- */
+// ---------- Load Excel ----------
 async function loadExcel() {
   try {
-    const res = await fetch(`${EXCEL_URL}?ts=${Date.now()}`); // cache-buster
+    const res = await fetch(`${EXCEL_URL}?ts=${Date.now()}`); // avoid caching
     if (!res.ok) throw new Error(`Could not fetch Excel: ${res.status}`);
-
     const data = await res.arrayBuffer();
+
     const wb = XLSX.read(data, { type: "array" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const all = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
@@ -48,25 +47,29 @@ async function loadExcel() {
     const first = all[0] || [];
     const a0 = (first[0] ?? "").toString().trim().toUpperCase();
     const b0 = (first[1] ?? "").toString().trim().toUpperCase();
-    const hasHeader = a0 === "ID" || b0 === "DETAILS" || b0 === "STATUS" || a0 === "LOCATION_ID";
+    const hasHeader =
+      a0 === "ID" ||
+      b0 === "DETAILS" ||
+      b0 === "STATUS" ||
+      a0 === "LOCATION_ID";
 
     rowsRaw = all.slice(hasHeader ? 1 : 0).map(r => [
       (r[0] ?? "").toString().trim(), // LOCATION_ID
-      (r[1] ?? "").toString().trim()  // DETAIL / STATUS / ITEM_ID
+      (r[1] ?? "").toString().trim()  // ITEM / STATUS
     ]);
 
-    console.log("Excel loaded:", rowsRaw.length);
+    console.log("Excel loaded. Rows:", rowsRaw.length);
   } catch (err) {
-    console.error(err);
+    console.error("Error in loadExcel:", err);
     document.getElementById("output").textContent = "⚠️ Could not load Excel file.";
   }
 }
 
-/* ---------- Helpers ---------- */
+// ---------- Helpers ----------
 function isEMPTY(val) {
   const v = (val ?? "").trim().toUpperCase();
-  // treat these as empty: literal EMPTY, Y, or blank
-  return v === "" || v === "Y" || v === "EMPTY";
+  // match your Python output: EMPTY or blank/Y if you want
+  return v === "EMPTY" || v === "Y" || v === "";
 }
 
 function cleanId(text) {
@@ -77,38 +80,32 @@ function cleanId(text) {
     .trim();
 }
 
-// Read ?id=... from URL and auto-run search
+// Optional: support ?id=... in URL
 function runFromURL() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
   if (id) {
-    const input = document.getElementById("id");
-    input.value = cleanId(id);
+    document.getElementById("id").value = cleanId(id);
     document.getElementById("searchForm").requestSubmit();
   }
 }
 
-/* ---------- Find Empty Locations (using full data) ---------- */
+// ---------- Core search: uses full data ----------
 function findNextEmptyLocations(startId) {
   const idx = rowsRaw.findIndex(r => r[0] === startId);
   if (idx === -1) return { foundIndex: -1, locations: [] };
 
   const out = [];
+  const prefix = (startId ?? "").substring(0, 5).toUpperCase();
 
-  // First 5 characters of the scanned ID define the "zone"
-  const prefix = (startId ?? "").toString().substring(0, 5).toUpperCase();
-
-  // Start scanning from the scanned bin row
   for (let i = idx; i < rowsRaw.length; i++) {
     const id = (rowsRaw[i][0] ?? "").toString().trim();
     const detail = rowsRaw[i][1];
 
     if (!id) break;
 
-    // Stop if prefix changes
     if (id.substring(0, 5).toUpperCase() !== prefix) break;
 
-    // Add only empty bins
     if (isEMPTY(detail)) {
       out.push(id);
     }
@@ -117,10 +114,11 @@ function findNextEmptyLocations(startId) {
   return { foundIndex: idx, locations: out };
 }
 
-/* ---------- Render Results (clickable + missing mark) ---------- */
+// ---------- Render results ----------
 function renderGroupedLocations(locations) {
   const frag = document.createDocumentFragment();
-  let currentGroup = null, colorIndex = -1;
+  let currentGroup = null;
+  let colorIndex = -1;
   const colors = ["#f0f8ff", "#ffdddd", "#ddffdd"];
 
   locations.forEach(loc => {
@@ -135,12 +133,11 @@ function renderGroupedLocations(locations) {
     div.textContent = loc;
     div.style.backgroundColor = colors[colorIndex];
 
-    // Show if already marked missing
     if (missingSet.has(loc)) {
       div.classList.add("missing");
     }
 
-    // Click to toggle missing
+    // click to toggle missing
     div.addEventListener("click", () => {
       if (missingSet.has(loc)) {
         missingSet.delete(loc);
@@ -158,7 +155,7 @@ function renderGroupedLocations(locations) {
   return frag;
 }
 
-/* ---------- Search Form ---------- */
+// ---------- Search form ----------
 document.getElementById("searchForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const searchId = cleanId(document.getElementById("id").value);
@@ -172,7 +169,7 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   }
 
   if (!rowsRaw.length) {
-    output.innerHTML = `<p style="color:red">Data not loaded yet. Please try again in a moment.</p>`;
+    output.innerHTML = `<p style="color:red">Data not loaded yet. Please refresh in a moment.</p>`;
     return;
   }
 
@@ -183,8 +180,8 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
     return;
   }
 
-  if (locations.length === 0) {
-    output.innerHTML = `<p class="muted">No empty bins found after the given ID in the same area.</p>`;
+  if (!locations.length) {
+    output.innerHTML = `<p class="muted">No empty bins found after this ID in the same area.</p>`;
     return;
   }
 
@@ -192,7 +189,7 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   grid.appendChild(renderGroupedLocations(locations));
 });
 
-/* ---------- Scanner ---------- */
+// ---------- Scanner ----------
 async function startScanner() {
   try {
     const cameras = await Html5Qrcode.getCameras();
@@ -230,10 +227,9 @@ async function startScanner() {
     if (video && video.srcObject) {
       videoTrack = video.srcObject.getVideoTracks()[0];
     }
-
   } catch (err) {
-    console.error(err);
-    alert("Could not start camera. Ensure permission is allowed and HTTPS is used.");
+    console.error("Scanner error:", err);
+    alert("Could not start camera. Check permission and HTTPS.");
     stopScanner();
   }
 }
@@ -264,9 +260,9 @@ async function enableTorch(on) {
   }
 }
 
-/* ---------- Missing locations download ---------- */
+// ---------- Missing locations download ----------
 function downloadMissingLocations() {
-  if (missingSet.size === 0) {
+  if (!missingSet.size) {
     alert("No missing locations have been marked yet.");
     return;
   }
@@ -288,7 +284,7 @@ function downloadMissingLocations() {
   document.body.removeChild(link);
 }
 
-/* ---------- Button wiring & init ---------- */
+// ---------- Wire buttons & init ----------
 document.getElementById("scanBtn").addEventListener("click", startScanner);
 document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
 document.getElementById("torchToggleBtn").addEventListener("click", () => {
@@ -298,5 +294,5 @@ document.getElementById("downloadMissingBtn").addEventListener("click", download
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadExcel();
-  runFromURL();   // allows ?id=... in the link
+  runFromURL();
 });
