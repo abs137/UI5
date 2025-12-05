@@ -1,5 +1,6 @@
 // ------------- CONFIG -------------
-const EXCEL_URL = "./book1.xlsx";   // <-- CHANGE to your real file name if needed
+// Change this to your real Excel file name if different
+const EXCEL_URL = "./book1.xlsx";
 // ----------------------------------
 
 let rowsRaw = []; // [ [LOCATION_ID, ITEM], ... ]
@@ -8,7 +9,7 @@ let isScanning = false;
 let videoTrack = null;
 let torchOn = false;
 
-// Missing locations tracking
+// Missing locations tracking (physically not present)
 let missingSet = new Set();
 
 // Restore missing locations from localStorage
@@ -33,13 +34,13 @@ function saveMissingToStorage() {
   }
 }
 
-// ---------- Load Excel ----------
+/* ---------- Load Excel (all bins) ---------- */
 async function loadExcel() {
   try {
-    const res = await fetch(`${EXCEL_URL}?ts=${Date.now()}`); // avoid caching
+    const res = await fetch(`${EXCEL_URL}?ts=${Date.now()}`); // cache-buster
     if (!res.ok) throw new Error(`Could not fetch Excel: ${res.status}`);
-    const data = await res.arrayBuffer();
 
+    const data = await res.arrayBuffer();
     const wb = XLSX.read(data, { type: "array" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const all = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
@@ -49,38 +50,41 @@ async function loadExcel() {
     const b0 = (first[1] ?? "").toString().trim().toUpperCase();
     const hasHeader =
       a0 === "ID" ||
+      a0 === "LOCATION_ID" ||
       b0 === "DETAILS" ||
-      b0 === "STATUS" ||
-      a0 === "LOCATION_ID";
+      b0 === "STATUS";
 
     rowsRaw = all.slice(hasHeader ? 1 : 0).map(r => [
       (r[0] ?? "").toString().trim(), // LOCATION_ID
-      (r[1] ?? "").toString().trim()  // ITEM / STATUS
+      (r[1] ?? "").toString().trim()  // ITEM / STATUS / DETAILS
     ]);
 
     console.log("Excel loaded. Rows:", rowsRaw.length);
   } catch (err) {
     console.error("Error in loadExcel:", err);
-    document.getElementById("output").textContent = "⚠️ Could not load Excel file.";
+    const msgDiv = document.getElementById("message");
+    if (msgDiv) {
+      msgDiv.textContent = "⚠️ Could not load Excel file.";
+    }
   }
 }
 
-// ---------- Helpers ----------
+/* ---------- Helpers ---------- */
 function isEMPTY(val) {
   const v = (val ?? "").trim().toUpperCase();
-  // match your Python output: EMPTY or blank/Y if you want
+  // Adjust to your Python output: here EMPTY / Y / blank all count as empty bin
   return v === "EMPTY" || v === "Y" || v === "";
 }
 
 function cleanId(text) {
   if (!text) return "";
   return String(text)
-    .replace(/^\][A-Z0-9]{2}/i, "")
-    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/^\][A-Z0-9]{2}/i, "")               // strip leading ]XX if present
+    .replace(/[\u0000-\u001F\u007F]/g, "")        // control chars
     .trim();
 }
 
-// Optional: support ?id=... in URL
+// Optional: support ?id=... in URL to auto-run
 function runFromURL() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
@@ -90,7 +94,7 @@ function runFromURL() {
   }
 }
 
-// ---------- Core search: uses full data ----------
+/* ---------- Core search using full data ---------- */
 function findNextEmptyLocations(startId) {
   const idx = rowsRaw.findIndex(r => r[0] === startId);
   if (idx === -1) return { foundIndex: -1, locations: [] };
@@ -104,6 +108,7 @@ function findNextEmptyLocations(startId) {
 
     if (!id) break;
 
+    // stop when we leave this 5-char “zone”
     if (id.substring(0, 5).toUpperCase() !== prefix) break;
 
     if (isEMPTY(detail)) {
@@ -114,7 +119,7 @@ function findNextEmptyLocations(startId) {
   return { foundIndex: idx, locations: out };
 }
 
-// ---------- Render results ----------
+/* ---------- Render results (clickable + missing mark) ---------- */
 function renderGroupedLocations(locations) {
   const frag = document.createDocumentFragment();
   let currentGroup = null;
@@ -137,7 +142,7 @@ function renderGroupedLocations(locations) {
       div.classList.add("missing");
     }
 
-    // click to toggle missing
+    // Click to toggle missing
     div.addEventListener("click", () => {
       if (missingSet.has(loc)) {
         missingSet.delete(loc);
@@ -155,41 +160,45 @@ function renderGroupedLocations(locations) {
   return frag;
 }
 
-// ---------- Search form ----------
+/* ---------- Search form handler ---------- */
 document.getElementById("searchForm").addEventListener("submit", (e) => {
   e.preventDefault();
+
   const searchId = cleanId(document.getElementById("id").value);
-  const output = document.getElementById("output");
+  const msg = document.getElementById("message");
   const grid = document.getElementById("binsGrid");
-  grid.innerHTML = "";
+
+  if (msg) msg.innerHTML = "";
+  if (grid) grid.innerHTML = "";
 
   if (!searchId) {
-    output.innerHTML = `<p style="color:red">Please enter a valid ID.</p>`;
+    if (msg) msg.innerHTML = `<p style="color:red">Please enter a valid ID.</p>`;
     return;
   }
 
   if (!rowsRaw.length) {
-    output.innerHTML = `<p style="color:red">Data not loaded yet. Please refresh in a moment.</p>`;
+    if (msg) msg.innerHTML = `<p style="color:red">Data not loaded yet. Please refresh in a moment.</p>`;
     return;
   }
 
   const { foundIndex, locations } = findNextEmptyLocations(searchId);
 
   if (foundIndex === -1) {
-    output.innerHTML = `<p style="color:red">ID not found in data.</p>`;
+    if (msg) msg.innerHTML = `<p style="color:red">ID not found in data.</p>`;
     return;
   }
 
   if (!locations.length) {
-    output.innerHTML = `<p class="muted">No empty bins found after this ID in the same area.</p>`;
+    if (msg) msg.innerHTML = `<p class="muted">No empty bins found after this ID in the same area.</p>`;
     return;
   }
 
-  output.innerHTML = "";
-  grid.appendChild(renderGroupedLocations(locations));
+  if (grid) {
+    grid.appendChild(renderGroupedLocations(locations));
+  }
 });
 
-// ---------- Scanner ----------
+/* ---------- Scanner ---------- */
 async function startScanner() {
   try {
     const cameras = await Html5Qrcode.getCameras();
@@ -254,13 +263,15 @@ async function enableTorch(on) {
     await videoTrack.applyConstraints({ advanced: [{ torch: on }] });
     torchOn = on;
     const btn = document.getElementById("torchToggleBtn");
-    btn.textContent = on ? "🔦 Turn OFF Flashlight" : "💡 Turn ON Flashlight";
+    if (btn) {
+      btn.textContent = on ? "🔦 Turn OFF Flashlight" : "💡 Turn ON Flashlight";
+    }
   } catch (err) {
     console.warn("Torch not supported:", err);
   }
 }
 
-// ---------- Missing locations download ----------
+/* ---------- Missing locations download ---------- */
 function downloadMissingLocations() {
   if (!missingSet.size) {
     alert("No missing locations have been marked yet.");
@@ -284,7 +295,7 @@ function downloadMissingLocations() {
   document.body.removeChild(link);
 }
 
-// ---------- Wire buttons & init ----------
+/* ---------- Wire buttons & init ---------- */
 document.getElementById("scanBtn").addEventListener("click", startScanner);
 document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
 document.getElementById("torchToggleBtn").addEventListener("click", () => {
