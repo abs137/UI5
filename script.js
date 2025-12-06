@@ -1,5 +1,4 @@
 // ------------- CONFIG -------------
-// Change this to your real Excel file name if different
 const EXCEL_URL = "./book1.xlsx";
 // ----------------------------------
 
@@ -9,13 +8,13 @@ let isScanning = false;
 let videoTrack = null;
 let torchOn = false;
 
-// Missing locations tracking (physically not present)
-let missingSet = new Set();   // no persistence now
+// Missing (selected) bins across ALL scans
+let missingSet = new Set();
 
-/* ---------- Load Excel (all bins) ---------- */
+/* ---------- Load Excel ---------- */
 async function loadExcel() {
   try {
-    const res = await fetch(`${EXCEL_URL}?ts=${Date.now()}`); // cache-buster
+    const res = await fetch(`${EXCEL_URL}?ts=${Date.now()}`);
     if (!res.ok) throw new Error(`Could not fetch Excel: ${res.status}`);
 
     const data = await res.arrayBuffer();
@@ -33,184 +32,131 @@ async function loadExcel() {
       b0 === "STATUS";
 
     rowsRaw = all.slice(hasHeader ? 1 : 0).map(r => [
-      (r[0] ?? "").toString().trim(), // LOCATION_ID
-      (r[1] ?? "").toString().trim()  // ITEM / STATUS / DETAILS
+      (r[0] ?? "").toString().trim(),
+      (r[1] ?? "").toString().trim()
     ]);
 
-    console.log("Excel loaded. Rows:", rowsRaw.length);
+    console.log("Excel loaded, rows:", rowsRaw.length);
   } catch (err) {
-    console.error("Error in loadExcel:", err);
-    const msgDiv = document.getElementById("message");
-    if (msgDiv) {
-      msgDiv.textContent = "⚠️ Could not load Excel file.";
-    }
+    console.error("Excel load failed:", err);
+    document.getElementById("message").innerHTML = "⚠️ Unable to load bin data.";
   }
 }
 
 /* ---------- Helpers ---------- */
-function isEMPTY(val) {
-  const v = (val ?? "").trim().toUpperCase();
-  // Adjust to your Python output: here EMPTY / Y / blank all count as empty bin
-  return v === "EMPTY" || v === "Y" || v === "";
-}
-
 function cleanId(text) {
   if (!text) return "";
   return String(text)
-    .replace(/^\][A-Z0-9]{2}/i, "")               // strip leading ]XX if present
-    .replace(/[\u0000-\u001F\u007F]/g, "")        // control chars
+    .replace(/^\][A-Z0-9]{2}/i, "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
     .trim();
 }
 
-// Optional: support ?id=... in URL to auto-run
-function runFromURL() {
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get("id");
-  if (id) {
-    document.getElementById("id").value = cleanId(id);
-    document.getElementById("searchForm").requestSubmit();
-  }
+function isEMPTY(v) {
+  const val = (v ?? "").toUpperCase().trim();
+  return val === "" || val === "EMPTY" || val === "Y";
 }
 
-/* ---------- Core search using full data ---------- */
-function findNextEmptyLocations(startId) {
-  const idx = rowsRaw.findIndex(r => r[0] === startId);
-  if (idx === -1) return { foundIndex: -1, locations: [] };
-
-  const out = [];
-  const prefix = (startId ?? "").substring(0, 5).toUpperCase();
-
-  for (let i = idx; i < rowsRaw.length; i++) {
-    const id = (rowsRaw[i][0] ?? "").toString().trim();
-    const detail = rowsRaw[i][1];
-
-    if (!id) break;
-
-    // stop when we leave this 5-char “zone”
-    if (id.substring(0, 5).toUpperCase() !== prefix) break;
-
-    if (isEMPTY(detail)) {
-      out.push(id);
-    }
-  }
-
-  return { foundIndex: idx, locations: out };
-}
-
-/* ---------- Render results (clickable + missing mark) ---------- */
-function renderGroupedLocations(locations) {
-  const frag = document.createDocumentFragment();
-  let currentGroup = null;
-  let colorIndex = -1;
-  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd"];
-
-  locations.forEach(loc => {
-    const groupKey = loc.substring(0, 8);
-    if (groupKey !== currentGroup) {
-      currentGroup = groupKey;
-      colorIndex = (colorIndex + 1) % colors.length;
-    }
-
-    const div = document.createElement("div");
-    div.className = "bin-card";
-    div.textContent = loc;
-    div.style.backgroundColor = colors[colorIndex];
-
-    if (missingSet.has(loc)) {
-      div.classList.add("missing");
-    }
-
-    // Click to toggle missing
-    div.addEventListener("click", () => {
-      if (missingSet.has(loc)) {
-        missingSet.delete(loc);
-        div.classList.remove("missing");
-      } else {
-        missingSet.add(loc);
-        div.classList.add("missing");
-      }
-      updateSelectedCount();
-    });
-
-    frag.appendChild(div);
-  });
-
-  // update count even if none selected yet
-  updateSelectedCount();
-
-  return frag;
-}
-
-/* ---------- Update selected count message ---------- */
 function updateSelectedCount() {
   const msg = document.getElementById("message");
   if (!msg) return;
 
-  const count = missingSet.size;
-  if (!count) {
-    msg.innerHTML = `<span class="muted">No locations marked as missing.</span>`;
+  if (!missingSet.size) {
+    msg.innerHTML = `<span class="muted">No bins selected</span>`;
   } else {
-    msg.innerHTML = `Selected missing locations: <strong>${count}</strong>`;
+    msg.innerHTML = `Selected bins: <b>${missingSet.size}</b>`;
   }
 }
 
-/* ---------- Clear all selected missing bins ---------- */
-function clearAllMissingLocations() {
-  if (!missingSet.size) {
-    alert("No missing locations have been marked yet.");
-    return;
+/* ---------- Search logic ---------- */
+function findNextEmptyLocations(startId) {
+  const idx = rowsRaw.findIndex(r => r[0] === startId);
+  if (idx === -1) return { foundIndex: -1, locations: [] };
+
+  const prefix = startId.substring(0, 5).toUpperCase();
+  const found = [];
+
+  for (let i = idx; i < rowsRaw.length; i++) {
+    const id = rowsRaw[i][0];
+    const det = rowsRaw[i][1];
+
+    if (!id) break;
+    if (id.substring(0,5).toUpperCase() !== prefix) break;
+
+    if (isEMPTY(det)) found.push(id);
   }
 
-  const ok = confirm("Clear all selected missing locations?");
-  if (!ok) return;
+  return { foundIndex: idx, locations: found };
+}
 
-  missingSet.clear();
+/* ---------- UI render ---------- */
+function renderGroupedLocations(locations) {
+  const grid = document.getElementById("binsGrid");
+  grid.innerHTML = "";
 
-  // Remove 'missing' class from all cards
-  document.querySelectorAll(".bin-card.missing").forEach(el => {
-    el.classList.remove("missing");
+  locations.forEach(loc => {
+    const card = document.createElement("div");
+    card.className = "bin-card";
+    card.textContent = loc;
+
+    if (missingSet.has(loc)) {
+      card.classList.add("missing");
+    }
+
+    card.addEventListener("click", () => {
+      if (missingSet.has(loc)) {
+        missingSet.delete(loc);
+        card.classList.remove("missing");
+      } else {
+        missingSet.add(loc);
+        card.classList.add("missing");
+      }
+      updateSelectedCount();
+    });
+
+    grid.appendChild(card);
   });
 
   updateSelectedCount();
 }
 
-/* ---------- Search form handler ---------- */
-document.getElementById("searchForm").addEventListener("submit", (e) => {
+/* ---------- FORM ---------- */
+document.getElementById("searchForm").addEventListener("submit", e => {
   e.preventDefault();
 
   const searchId = cleanId(document.getElementById("id").value);
   const msg = document.getElementById("message");
   const grid = document.getElementById("binsGrid");
 
-  if (msg) msg.innerHTML = "";
-  if (grid) grid.innerHTML = "";
-  // reset current selection whenever doing a fresh search
+  msg.innerHTML = "";
+  grid.innerHTML = "";
 
   if (!searchId) {
-    if (msg) msg.innerHTML = `<p style="color:red">Please enter a valid ID.</p>`;
+    msg.innerHTML = "<p style='color:red'>Enter ID</p>";
     return;
   }
 
   if (!rowsRaw.length) {
-    if (msg) msg.innerHTML = `<p style="color:red">Data not loaded yet. Please refresh in a moment.</p>`;
+    msg.innerHTML = "<p style='color:red'>Data not loaded.</p>";
     return;
   }
 
-  const { foundIndex, locations } = findNextEmptyLocations(searchId);
+  const {foundIndex, locations} = findNextEmptyLocations(searchId);
 
   if (foundIndex === -1) {
-    if (msg) msg.innerHTML = `<p style="color:red">ID not found in data.</p>`;
+    msg.innerHTML = "<p style='color:red'>ID not found.</p>";
     return;
   }
 
   if (!locations.length) {
-    if (msg) msg.innerHTML = `<p class="muted">No empty bins found after this ID in the same area.</p>`;
+    msg.innerHTML = "<span class='muted'>No empty bins here.</span>";
     return;
   }
 
-  if (grid) {
-    grid.appendChild(renderGroupedLocations(locations));
-  }
+  renderGroupedLocations(locations);
+
+  // ✅ Critical fix:
+  document.getElementById("id").value = "";
 });
 
 /* ---------- Scanner ---------- */
@@ -223,38 +169,30 @@ async function startScanner() {
     document.getElementById("torchControls").style.display = "block";
 
     await html5QrCode.start(
-      { facingMode: "environment" },       // force back camera
-      {
-        fps: 10,
-        qrbox: 250,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-      },
-      (decodedText) => {
-        document.getElementById("id").value = cleanId(decodedText);
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 250, experimentalFeatures:{useBarCodeDetectorIfSupported:true} },
+      decoded => {
+        document.getElementById("id").value = cleanId(decoded);
         stopScanner();
         document.getElementById("searchForm").requestSubmit();
       }
     );
 
-    const video = document.querySelector("#qr-reader video");
-    if (video && video.srcObject) {
-      videoTrack = video.srcObject.getVideoTracks()[0];
-    }
+    const vid = document.querySelector("#qr-reader video");
+    if (vid && vid.srcObject)
+      videoTrack = vid.srcObject.getVideoTracks()[0];
+
   } catch (err) {
-    console.error("Scanner error:", err);
-    alert("Could not start camera. Check permission and HTTPS.");
+    console.error("Scanner error", err);
+    alert("Camera/Scanner error.");
     stopScanner();
   }
 }
 
 async function stopScanner() {
-  if (html5QrCode && isScanning) {
-    try {
-      await html5QrCode.stop();
-    } catch (e) {
-      console.warn("Error stopping scanner:", e);
-    }
-  }
+  if (html5QrCode && isScanning)
+    try { await html5QrCode.stop(); } catch {}
+
   isScanning = false;
   document.getElementById("scannerWrap").style.display = "none";
   document.getElementById("torchControls").style.display = "none";
@@ -263,109 +201,75 @@ async function stopScanner() {
 
 async function enableTorch(on) {
   if (!videoTrack) return;
+
   try {
     await videoTrack.applyConstraints({ advanced: [{ torch: on }] });
     torchOn = on;
-    const btn = document.getElementById("torchToggleBtn");
-    if (btn) {
-      btn.textContent = on ? "🔦 Turn OFF Flashlight" : "💡 Turn ON Flashlight";
-    }
-  } catch (err) {
-    console.warn("Torch not supported:", err);
+    document.getElementById("torchToggleBtn").textContent =
+      on ? "🔦 Turn OFF Flashlight" : "💡 Turn ON Flashlight";
+  } catch {
+    console.warn("Torch not supported.");
   }
 }
 
-/* ---------- Missing locations download (PDF) ---------- */
+/* ---------- DOWNLOAD PDF ---------- */
 function downloadMissingLocations() {
-  if (!missingSet.size) {
-    alert("No missing locations have been marked yet.");
-    return;
-  }
+  if (!missingSet.size) return alert("No bins selected.");
 
-  // Works for ALL jsPDF loading methods
-  const JsPDF =
-    (window.jspdf && window.jspdf.jsPDF) || // UMD build
-    window.jsPDF ||                        // older global
-    null;
+  const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!JsPDF) return alert("jsPDF not loaded.");
 
-  if (!JsPDF) {
-    alert("PDF library (jsPDF) is not loaded. Please check the script tag.");
-    return;
-  }
-
-  const doc = new JsPDF({
-    orientation: "portrait",
-    unit: "pt",
-    format: "a4"
-  });
-
-  const marginLeft = 40;
+  const doc = new JsPDF({unit:"pt"});
   let y = 40;
-  const lineGap = 18;
-  const pageHeight = doc.internal.pageSize.getHeight() - 40;
+  const h = doc.internal.pageSize.height - 30;
 
-  // Header
-  doc.setFont("helvetica", "bold");
+  doc.setFont("helvetica","bold");
   doc.setFontSize(14);
-  doc.text("Missing Locations Report", marginLeft, y);
-  y += 24;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, marginLeft, y);
+  doc.text("Missing Locations", 40, y);
   y += 22;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(`Total missing: ${missingSet.size}`, marginLeft, y);
-  y += 18;
+  doc.setFontSize(10);
+  doc.text(new Date().toLocaleString(), 40, y);
+  y += 20;
 
-  doc.setFont("helvetica", "bold");
-  doc.text("LOCATION_ID", marginLeft, y);
-  y += 14;
+  doc.text(`Total: ${missingSet.size}`, 40, y);
+  y += 20;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont("helvetica","normal");
 
-  const ids = [...missingSet].sort();
-
-  for (const id of ids) {
-    if (y > pageHeight) {
+  [...missingSet].sort().forEach(id => {
+    if (y > h) {
       doc.addPage();
       y = 40;
-      doc.setFont("helvetica", "bold");
-      doc.text("LOCATION_ID (cont.)", marginLeft, y);
-      y += 18;
-      doc.setFont("helvetica", "normal");
     }
+    doc.text(id, 40, y);
+    y += 18;
+  });
 
-    doc.text(String(id), marginLeft, y);
-    y += lineGap;
-  }
-
-  const ts = new Date()
-    .toISOString()
-    .replace(/[-:T]/g, "")
-    .slice(0, 12);
-
+  const ts = new Date().toISOString().replace(/[:\-T]/g,"").slice(0,12);
   doc.save(`missing_locations_${ts}.pdf`);
 }
 
-/* ---------- Wire buttons & init ---------- */
-document.getElementById("scanBtn").addEventListener("click", startScanner);
-document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
-document.getElementById("torchToggleBtn").addEventListener("click", () => {
-  enableTorch(!torchOn);
-});
-document.getElementById("downloadMissingBtn").addEventListener("click", downloadMissingLocations);
+/* ---------- CLEAR ---------- */
+function clearAllMissingLocations() {
+  if (!missingSet.size) return alert("Nothing selected.");
 
-// Clear All button (if present in HTML)
-const clearBtn = document.getElementById("clearAllBtn");
-if (clearBtn) {
-  clearBtn.addEventListener("click", clearAllMissingLocations);
+  if (!confirm("Clear all selected bins?")) return;
+
+  missingSet.clear();
+  document.querySelectorAll(".bin-card.missing").forEach(el=>el.classList.remove("missing"));
+  updateSelectedCount();
 }
 
+/* ---------- EVENTS ---------- */
+document.getElementById("scanBtn").addEventListener("click", startScanner);
+document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
+document.getElementById("torchToggleBtn").addEventListener("click", ()=> enableTorch(!torchOn));
+document.getElementById("downloadMissingBtn").addEventListener("click", downloadMissingLocations);
+document.getElementById("clearAllBtn").addEventListener("click", clearAllMissingLocations);
+
+/* ---------- INIT ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   await loadExcel();
-  runFromURL();
   updateSelectedCount();
 });
