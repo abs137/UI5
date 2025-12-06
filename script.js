@@ -95,7 +95,7 @@ function renderGroupedLocations(locations) {
   grid.innerHTML = "";
 
   // colors per group of first 8 chars
-  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd", "#fef9c3"];
+  const colors = ["#ffdddd", "#f0f8ff", "#ddffdd"];
   let currentGroup = null;
   let colorIndex = -1;
 
