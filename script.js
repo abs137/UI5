@@ -156,7 +156,7 @@ document.getElementById("searchForm").addEventListener("submit", e => {
   renderGroupedLocations(locations);
 
   // ✅ Critical fix:
-  document.getElementById("id").value = "";
+  // document.getElementById("id").value = "";
 });
 
 /* ---------- Scanner ---------- */
