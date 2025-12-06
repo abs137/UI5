@@ -10,29 +10,7 @@ let videoTrack = null;
 let torchOn = false;
 
 // Missing locations tracking (physically not present)
-let missingSet = new Set();
-
-// Restore missing locations from localStorage
-(function initMissingFromStorage() {
-  try {
-    const raw = localStorage.getItem("missingLocations");
-    if (!raw) return;
-    const arr = JSON.parse(raw);
-    if (Array.isArray(arr)) {
-      arr.forEach(id => missingSet.add(String(id)));
-    }
-  } catch (e) {
-    console.warn("Could not load missingLocations from storage:", e);
-  }
-})();
-
-function saveMissingToStorage() {
-  try {
-    localStorage.setItem("missingLocations", JSON.stringify(Array.from(missingSet)));
-  } catch (e) {
-    console.warn("Could not save missingLocations to storage:", e);
-  }
-}
+let missingSet = new Set();   // no persistence now
 
 /* ---------- Load Excel (all bins) ---------- */
 async function loadExcel() {
@@ -151,13 +129,49 @@ function renderGroupedLocations(locations) {
         missingSet.add(loc);
         div.classList.add("missing");
       }
-      saveMissingToStorage();
+      updateSelectedCount();
     });
 
     frag.appendChild(div);
   });
 
+  // update count even if none selected yet
+  updateSelectedCount();
+
   return frag;
+}
+
+/* ---------- Update selected count message ---------- */
+function updateSelectedCount() {
+  const msg = document.getElementById("message");
+  if (!msg) return;
+
+  const count = missingSet.size;
+  if (!count) {
+    msg.innerHTML = `<span class="muted">No locations marked as missing.</span>`;
+  } else {
+    msg.innerHTML = `Selected missing locations: <strong>${count}</strong>`;
+  }
+}
+
+/* ---------- Clear all selected missing bins ---------- */
+function clearAllMissingLocations() {
+  if (!missingSet.size) {
+    alert("No missing locations have been marked yet.");
+    return;
+  }
+
+  const ok = confirm("Clear all selected missing locations?");
+  if (!ok) return;
+
+  missingSet.clear();
+
+  // Remove 'missing' class from all cards
+  document.querySelectorAll(".bin-card.missing").forEach(el => {
+    el.classList.remove("missing");
+  });
+
+  updateSelectedCount();
 }
 
 /* ---------- Search form handler ---------- */
@@ -170,6 +184,8 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
 
   if (msg) msg.innerHTML = "";
   if (grid) grid.innerHTML = "";
+  // reset current selection whenever doing a fresh search
+  missingSet.clear();
 
   if (!searchId) {
     if (msg) msg.innerHTML = `<p style="color:red">Please enter a valid ID.</p>`;
@@ -201,13 +217,6 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
 /* ---------- Scanner ---------- */
 async function startScanner() {
   try {
-    const cameras = await Html5Qrcode.getCameras();
-    if (!cameras || cameras.length === 0) {
-      alert("No camera found!");
-      return;
-    }
-
-    const cameraId = cameras[0].id;
     html5QrCode = new Html5Qrcode("qr-reader");
     isScanning = true;
 
@@ -215,15 +224,11 @@ async function startScanner() {
     document.getElementById("torchControls").style.display = "block";
 
     await html5QrCode.start(
-      cameraId,
+      { facingMode: "environment" },       // force back camera
       {
         fps: 10,
         qrbox: 250,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        videoConstraints: {
-          facingMode: "environment",
-          focusMode: "continuous"
-        }
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
       },
       (decodedText) => {
         document.getElementById("id").value = cleanId(decodedText);
@@ -271,7 +276,7 @@ async function enableTorch(on) {
   }
 }
 
-/* ---------- Missing locations download ---------- */
+/* ---------- Missing locations download (PDF) ---------- */
 function downloadMissingLocations() {
   if (!missingSet.size) {
     alert("No missing locations have been marked yet.");
@@ -313,6 +318,10 @@ function downloadMissingLocations() {
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
+  doc.text(`Total missing: ${missingSet.size}`, marginLeft, y);
+  y += 18;
+
+  doc.setFont("helvetica", "bold");
   doc.text("LOCATION_ID", marginLeft, y);
   y += 14;
 
@@ -342,8 +351,6 @@ function downloadMissingLocations() {
   doc.save(`missing_locations_${ts}.pdf`);
 }
 
-
-
 /* ---------- Wire buttons & init ---------- */
 document.getElementById("scanBtn").addEventListener("click", startScanner);
 document.getElementById("stopScanBtn").addEventListener("click", stopScanner);
@@ -352,7 +359,14 @@ document.getElementById("torchToggleBtn").addEventListener("click", () => {
 });
 document.getElementById("downloadMissingBtn").addEventListener("click", downloadMissingLocations);
 
+// Clear All button (if present in HTML)
+const clearBtn = document.getElementById("clearAllBtn");
+if (clearBtn) {
+  clearBtn.addEventListener("click", clearAllMissingLocations);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   await loadExcel();
   runFromURL();
+  updateSelectedCount();
 });
