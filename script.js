@@ -185,7 +185,6 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   if (msg) msg.innerHTML = "";
   if (grid) grid.innerHTML = "";
   // reset current selection whenever doing a fresh search
-  missingSet.clear();
 
   if (!searchId) {
     if (msg) msg.innerHTML = `<p style="color:red">Please enter a valid ID.</p>`;
