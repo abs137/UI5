@@ -92,6 +92,16 @@
       color: white;
     }
 
+    /* Row with Download + Clear */
+    .action-bar {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      margin-bottom: 8px;
+    }
+
     #scannerWrap {
       display: none;
       margin-top: 16px;
@@ -150,28 +160,9 @@
       opacity: 0.75;
     }
 
-    .top-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-      flex-wrap: wrap;
-    }
-
-    .info-text {
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
     @media (max-width: 480px) {
       input[type="text"] {
         flex-basis: 100%;
-      }
-
-      .top-actions {
-        flex-direction: column;
-        align-items: flex-start;
       }
     }
   </style>
@@ -181,26 +172,22 @@
   <div class="card">
     <h1>Empty Bin Search</h1>
 
+    <!-- Search + Scan row -->
     <form id="searchForm">
       <input id="id" type="text" placeholder="Enter or scan ID" autocomplete="off" />
       <button type="submit">Search</button>
       <button type="button" id="scanBtn" class="secondary">📷 Scan</button>
     </form>
 
-    <form id="actionBar" style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px;">
+    <!-- Download + Clear row -->
+    <div class="action-bar">
       <button type="button" id="downloadMissingBtn" class="secondary">Download</button>
       <button type="button" id="clearAllBtn" class="secondary">Clear</button>
-    </form>
-      <button type="button" id="downloadMissingBtn" class="secondary">
-        ⬇ Download Missing Locations
-      </button>
-      <button type="button" id="clearAllBtn" class="secondary">
-        🗑 Clear All
-      </button>
     </div>
 
+    <!-- Scanner -->
     <div id="scannerWrap">
-      <div id="qr-reader" style="width:300px; margin:auto;"></div>
+      <div id="qr-reader"></div>
       <div id="torchControls">
         <button id="torchToggleBtn" type="button">💡 Turn ON Flashlight</button>
       </div>
@@ -209,27 +196,24 @@
       </div>
     </div>
 
+    <!-- Output -->
     <div id="output">
-      <!-- message area for errors/status -->
       <div id="message"></div>
-      <!-- grid for bins; JS just fills this -->
       <div id="binsGrid" aria-live="polite"></div>
     </div>
   </div>
 
-  <!-- Excel library (for reading book1.xlsx / EmptyBinData.xlsx) -->
+  <!-- Excel library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <!-- QR / barcode scanner -->
   <script src="https://unpkg.com/html5-qrcode" defer></script>
 
-  <!-- PDF library for Missing Locations report -->
+  <!-- PDF library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-  <!-- Your main logic -->
+  <!-- Main logic -->
   <script src="script.js"></script>
 </body>
 
 </html>
-
-
