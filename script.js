@@ -94,11 +94,27 @@ function renderGroupedLocations(locations) {
   const grid = document.getElementById("binsGrid");
   grid.innerHTML = "";
 
+  // colors per group of first 8 chars
+  const colors = ["#f0f8ff", "#ffdddd", "#ddffdd", "#fef9c3"];
+  let currentGroup = null;
+  let colorIndex = -1;
+
   locations.forEach(loc => {
+    const groupKey = loc.substring(0, 8);  // first 8 characters
+
+    if (groupKey !== currentGroup) {
+      currentGroup = groupKey;
+      colorIndex = (colorIndex + 1) % colors.length;
+    }
+
     const card = document.createElement("div");
     card.className = "bin-card";
     card.textContent = loc;
 
+    // set group background color
+    card.style.backgroundColor = colors[colorIndex];
+
+    // keep red outline for selected (missing) bins
     if (missingSet.has(loc)) {
       card.classList.add("missing");
     }
@@ -119,6 +135,7 @@ function renderGroupedLocations(locations) {
 
   updateSelectedCount();
 }
+
 
 
 /* ---------- FORM ---------- */
