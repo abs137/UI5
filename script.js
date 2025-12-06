@@ -183,19 +183,22 @@ document.getElementById("scanBtn").onclick = async () => {
     return;
   }
 
-  html5QrCode = new Html5Qrcode("qr-reader");
-
   html5QrCode.start(
-    cams[0].id,
-    { fps:10, qrbox:250 },
+    { facingMode: "environment" },   // <-- FORCE BACK CAMERA
+    {
+      fps: 10,
+      qrbox: 250,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true
+      }
+    },
     qr => {
-
       html5QrCode.stop();
-
       document.getElementById("id").value = qr;
       document.getElementById("searchForm").requestSubmit();
     }
   );
+
 };
 
 // ---------- INIT ----------
