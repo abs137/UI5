@@ -120,6 +120,7 @@ function renderGroupedLocations(locations) {
   updateSelectedCount();
 }
 
+
 /* ---------- FORM ---------- */
 document.getElementById("searchForm").addEventListener("submit", e => {
   e.preventDefault();
